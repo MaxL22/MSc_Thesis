@@ -1,0 +1,45 @@
+\chapter{Foundations of Vulnerability Discovery}
+\label{ch:bg}
+
+The fundamental challenge of software security is the identification of unintended, exploitable states. Given the complexity of non-trivial codebases, exhaustive manual auditing is infeasible.
+
+To automate vulnerability discovery, three primary approaches have emerged: static analysis, symbolic execution, and dynamic analysis, most notably, fuzzing. While each methodology offers unique advantages, practical constraints regarding scalability and precision have established fuzzing as the dominant approach for identifying flaws in compiled binaries.
+
+\subsubsection{Static Analysis}
+
+Static Application Security Testing (SAST) relies on examining source code, bytecode, or binaries, to identify issues via a pre-defined set of syntactic or semantic rules without ever executing the program. This enables the identification of security concerns early in the development cycle --- long before the code is deployed --- and theoretically allows for the evaluation of all possible execution paths by traversing the program's abstract syntax tree (AST) or control flow graph (CFG).
+
+However, the pursuit of comprehensiveness in static analysis requires conservative assumptions about the runtime state. This can become particularly problematic when attempting to resolve dynamic memory allocations, pointer aliasing, and dynamic control flow. 
+
+The necessary over-approximation of the program's behaviour leads to a high volume of false positives \cite{nachtigall2022large}. Furthermore, the reliance on pre-defined rule sets can miss bugs that deviate, even slightly, from known vulnerability patterns.
+
+\subsubsection{Symbolic Execution}
+ 
+Symbolic execution addresses the precision failures of static analysis by exploring paths using symbolic variables rather than concrete values \cite{king1976symbolic}. The engine builds a logical formula representing the constraints required to reach specific execution paths. An SMT (Satisfiability Modulo Theories) solver is then used to determine whether a path is reachable. 
+
+% sound = can check that there are no errors, zero false negatives/never misses real bug, might be false positives
+% complete = if it reports a bug it's real, zero false positives, might be false negatives
+
+While providing rigorous formal guarantees for the paths it does explore, symbolic execution suffers from severe scalability issues: 
+\begin{itemize}
+    \item Path Explosion: The number of paths in a program grows exponentially with the number of conditional branches (and infinitely in the presence of unbounded loops), frequently causing the state space to grow beyond computational feasibility.
+
+   \item Constraint Solving Complexity: SMT solvers struggle with non-linear arithmetic and complex memory models. When encountering these constructs, the solver can slow down significantly or even time out, halting exploration.
+\end{itemize}
+Due to these problems \cite{baldoni2018survey}, symbolic execution is generally considered incomplete (since not all paths can be explored) but highly precise.
+
+\subsubsection{The Pragmatism of Coverage-Guided Fuzzing}
+
+Coverage-Guided Fuzzing (CGF) operates entirely in the realm of concrete execution. By feeding mutated, real inputs to a target and monitoring the execution, fuzzers sidestep the need for mathematical abstractions and constraint solving.
+
+The primary advantages of this method are:
+\begin{itemize}
+    \item Concrete Reproducibility: Each reported crash or violation is guaranteed to be real, as it is accompanied by a concrete test case that triggers the fault.
+
+    \item Scalability: Fuzzing is inherently highly parallelizable and often bound only by the target's execution speed.
+\end{itemize}
+However, since it relies primarily on random mutation to navigate the program's state space, the coverage feedback mechanism is essential to prevent the technique from devolving into a blind search.
+
+\input{chapters/background/gen_def}
+
+\input{chapters/background/ff}

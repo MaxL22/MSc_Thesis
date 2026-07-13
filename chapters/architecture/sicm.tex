@@ -1,0 +1,13 @@
+\section{The Secondary Indirect Coverage Map}
+
+To accurately track indirect branches without polluting the primary coverage map or degrading execution speed, an alternative data structure is required. We propose the introduction of a dedicated secondary coverage map for tracking indirect control flow transfers. This architecture aims to resolve the conflicting constraints of maintaining high capacity for dynamic edges while preserving strict memory and performance bounds.
+
+The primary concept relies on utilizing a small Bloom filter for each possible source of an indirect jump: each target reached is then represented by a single bit raised to 1 within the corresponding filter. 
+
+\paragraph{Isolation} We aim to decouple the tracking of indirect branches from the standard coverage map and move this data into an independent shared memory region. Isolation ensures that collisions occurring within the secondary map cannot inadvertently suppress standard edge discovery. 
+
+\paragraph{Collision-Free Identification} For our secondary map, we use a dynamic, sequential "\textit{Guard Array}" architecture. In this model, every indirect branch source in the compiled binary is assigned a guaranteed, sequentially numbered and collision-free slot. 
+
+During the compilation phase, a dedicated ELF section is created, allocating exactly one slot for every \texttt{call} or \texttt{jmp} instruction that resolves dynamically. This approach guarantees that the coverage map possesses a 1-to-1 mapping for the \textit{origins} of all indirect control flow transfers.
+
+\paragraph{Configurable Fidelity} To address the diverse requirements of different target applications, we provide configurable fidelity. The size of the Bloom filter, and consequently the collision tolerance of the secondary map itself, can be tuned. This allows balancing the memory footprint against the granularity of fuzzing feedback.

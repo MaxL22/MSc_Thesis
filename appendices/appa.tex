@@ -1,0 +1,52 @@
+\chapter{LLVM Intermediate Representation Instrumentation}
+\label{app:llvmir}
+
+\begin{listing}[htbp]
+    \inputminted[
+        linenos,               % Line numbers for easy referencing in text
+        breaklines,            % CRITICAL for theses: prevents code running off the page margin
+        %fontsize=\scriptsize,  % Scales down the text (LLVM IR lines can be very long)
+        frame=lines,           % Adds clean top and bottom rules
+        framesep=2mm,          % Padding between the frame and the code
+        rulecolor=\color{black!50}, % Optional: makes the frame lines slightly grey
+        tabsize=2              % Adjust indentation size
+    ]{llvm}{code/llvm_instr_example.ll}
+    
+    \caption{Generic AFL++ instrumentation, added to the start of a basic block.}
+    \label{lst:ir_generic_inst}
+\end{listing}
+
+\chapter{Callback Definition}
+\label{app:fuzzr}
+
+\begin{listing}[htbp]
+    \inputminted[
+        linenos,               % Line numbers for easy referencing in text
+        breaklines,            % CRITICAL for theses: prevents code running off the page margin
+        %fontsize=\scriptsize,  % Scales down the text (LLVM IR lines can be very long)
+        frame=lines,           % Adds clean top and bottom rules
+        framesep=2mm,          % Padding between the frame and the code
+        rulecolor=\color{black!50}, % Optional: makes the frame lines slightly grey
+        tabsize=2              % Adjust indentation size
+    ]{c}{code/callback.c}  
+    
+    \caption{Callback definition inside the compiler runtime.}
+    \label{lst:callback}
+\end{listing}
+
+\iffalse
+\begin{listing}[htbp]
+    \inputminted[
+        linenos,               % Line numbers for easy referencing in text
+        breaklines,            % CRITICAL for theses: prevents code running off the page margin
+        %fontsize=\scriptsize,  % Scales down the text (LLVM IR lines can be very long)
+        frame=lines,           % Adds clean top and bottom rules
+        framesep=2mm,          % Padding between the frame and the code
+        rulecolor=\color{black!50}, % Optional: makes the frame lines slightly grey
+        tabsize=2              % Adjust indentation size
+    ]{c}{code/realloc.c}  
+    
+    \caption{Indirect map reallocation routine.}
+    \label{lst:realloc}
+\end{listing}
+\fi

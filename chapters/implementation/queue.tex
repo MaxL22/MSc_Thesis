@@ -1,0 +1,24 @@
+\section{Queue Management and Seed Scoring}
+
+The integration of the secondary coverage map dictates the need for adjustments to the fuzzer's core heuristics, altering how test cases are evaluated. The scheduling algorithms (\texttt{src/afl-fuzz-queue.c}, \texttt{src/afl-fuzz-run.c}) were updated to ensure that the fuzzer actively prioritises inputs that uncover new indirect execution paths.
+
+\subsubsection{Top Rated Seeds and Queue Culling}
+
+Mirroring the standard coverage map's scoring system, the fuzzer evaluates executions against a \texttt{top\_rated\_indir} array. For each active bit in the \texttt{indir\_map}, the fuzzer explicitly preserves the smallest and fastest test case required to trigger each specific indirect target.
+
+During the \texttt{cull\_queue} routine, AFL++ iterates over the \texttt{indir\_top\_rated} array to select favoured seeds. Test cases that hit indirect paths not covered by other favoured seeds are explicitly marked as \texttt{favored}, prioritising execution during the fuzzing loop. The map representation is never minimised as it is already "minimal" by design.
+
+\subsubsection{Execution Verification and Checksums}
+
+To maintain the integrity of the fuzzing state, AFL++ validates execution traces to ensure determinism. The checksum algorithms and trace validations executed during calibration have been modified to compute and verify a second hash. A new checksum for the indirect map is calculated and verified:
+\begin{minted}{c}
+if (unlikely(q->exec_cksum != cksum || 
+    (afl->shm.indir_mode && q->indir_cksum != indir_cksum))) 
+\end{minted}
+This exposes variable execution states, allowing the fuzzer's stability metric to correctly flag the trace as variable.
+
+\subsubsection{Queue Additions and Performance Multipliers}
+
+Upon run completion, the state of the secondary map is evaluated against the historical trace of seen bits. If new indirect targets are found, the input is immediately appended to the active queue. This input is explicitly marked as finding new coverage, even if the primary map reported no discoveries.
+
+When calculating the performance score of a seed, the fuzzer also takes into account the density of the secondary map. A higher number of indirect branches triggered results in higher performance multipliers. Furthermore, performance score bonuses are awarded to inputs that cover more than the average number of indirect targets across all seeds.

@@ -1,0 +1,24 @@
+\section{Forkserver and IPC}
+
+Low-latency communication between the fuzzer and the target process is fundamental for the dynamic sizing of the map. The required map size depends on the target binary's structure and complexity, so the fuzzer needs to determine the appropriate size, which is only known after initialisation. This dependency is resolved through some modifications to the AFL++ forkserver handshake protocol.
+
+\subsubsection{The \texttt{FS\_NEW\_OPT\_INDIR\_MAPSIZE} Signal Protocol}
+\label{subsub:signalprot}
+
+The AFL++ forkserver uses a pair of pipes to mediate the execution lifecycle of the target binary. During the initial handshake sequence, the instrumented binary communicates its configuration to the fuzzer by writing a bitfield of operational flags to the status pipe.
+
+To facilitate the transmission of the calculated indirect map size, a new flag \texttt{FS\_NEW\_OPT\_INDIR\_MAPSIZE} is defined within the shared header \texttt{include/forkserver.h}.
+
+\paragraph{Target-Side Transmission} After calculating the map size, the compiler runtime executes the initial forkserver handshake. It asserts the \texttt{FS\_NEW\_OPT\_INDIR\_MAPSIZE} bit within the status payload. Following the transmission of the primary status flags, the runtime executes an out-of-bounds (OOB) write to the status pipe, transmitting the 32-bit unsigned integer value of the map size. This OOB data transmission ensures backward compatibility; older fuzzers unequipped to parse the new flag will just ignore the trailing bytes.
+
+\paragraph{Fuzzer-Side Reception} In the routine to start the forkserver, the fuzzer process enters a read state, awaiting the initial status payload. Upon detecting the \texttt{FS\_NEW\_OPT\_INDIR\_MAPSIZE} flag in the status bitfield, the fuzzer transitions to a secondary read state to extract the transmitted four bytes from the status pipe.
+
+The received integer value is assigned to the indirect map size value in the forkserver state (\texttt{fsrv->indir\_map\_size}). To prevent unaligned memory faults during bitmap evaluation, the fuzzer rounds up the received memory size to the nearest multiple of 64 bytes.
+
+\subsubsection{Environment Variable Propagation}
+
+While the forkserver pipe handles the direct transmission of the map size, the fuzzer must manage the communication of the shared memory location to the spawned target processes. Similarly to the standard coverage map, this is achieved through environment variable injection.
+
+When the fuzzer allocates the secondary memory region, it constructs and exports the \texttt{\_\_AFL\_INDIR\_SHM\_ID} environment variable string. When using POSIX shared memory, the variable contains the virtual path identifier used to open the shared memory object. For consistency, the variable \texttt{AFL\_INDIR\_MAP\_SIZE} is also exported, after being set to the rounded-up size calculated during the handshake.
+
+During the actual fuzzing loop, when the forkserver clones the target process, these environment variables are inherited by the child process. The runtime component parses them to attach to the correct shared memory segment and verify the size value of the mapped region.

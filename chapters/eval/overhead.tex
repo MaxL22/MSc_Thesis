@@ -1,0 +1,17 @@
+\section{Performance Overhead}
+
+While the primary goal of the additional coverage map is to increase path discovery, any added instrumentation inherently risks reducing the execution throughput. A significant drop in executions per second (exec/s) can offset the benefits of better feedback. This section evaluates the computational penalty introduced by our architecture.
+
+\subsubsection{Execution Throughput}
+
+To assess the impact, we compared the average executions per second across all campaigns for all tested configurations.
+
+\input{imgs/eval/overhead_table}
+
+Table \ref{tab:exec_overhead} shows the average execution speeds and average overhead across all configurations. 
+
+The data indicates that the secondary map, along with all the necessary mechanisms, introduces a measurable execution penalty that varies heavily by target. Across the benchmarks, the modified fuzzer experienced overhead ranging from $7\%$ to over $25\%$ --- with the anomaly of \texttt{systemd}, which can be attributed to environmental noise and statistical margin of error. 
+
+Targets with particularly high densities of indirect branches exhibited the worst degradation. Furthermore, a significant proportion of the overhead resides in the post-execution phase, meaning that targets with higher absolute numbers of executions per second seem to suffer greater proportional degradation.
+
+Some of the overhead is attributable to the injection of a callback, as the routine to call a function is computationally expensive. This could be mitigated in the future by injecting LLVM IR directly instead of relying on a function call.

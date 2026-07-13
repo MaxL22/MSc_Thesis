@@ -1,0 +1,32 @@
+\section{Compiler-RT}
+
+The runtime library (\texttt{instrumentation/afl-compiler-rt.o.c}) acts as a layer between the LLVM-generated structures and the dynamic coverage tracking of the fuzzer. Among its responsibilities are the initialisation of the guard array, the calculation of the required shared memory footprint, and the execution of the callback.
+
+\subsubsection{Guard Array Initialisation}
+
+The execution lifecycle of the secondary coverage map mechanism starts prior to the execution of \texttt{main}, with the module-level constructor:
+\begin{minted}{c}
+__afl_indir_trace_pc_guard_init(uint32_t *start, uint32_t *stop)
+\end{minted}
+
+The linker guarantees that \texttt{start} and \texttt{stop} represent the boundaries of the contiguous \texttt{\_\_sancov\_indir\_guards} section containing the guard slots for the module in question.
+
+The primary job of this initialisation function is to assign unique identifiers to each slot. Using an atomic counter (\texttt{\_\_afl\_indir\_final\_loc}), it scans the region \texttt{[start, stop)} and, for each uninitialised guard slot, writes the current value of the counter and increments it.
+
+\subsubsection{Dynamic Map Sizing}
+
+Upon completion of the guard initialisation scan, the required map dimension is computed as \texttt{\_\_afl\_indir\_final\_loc + 1}. This is the exact dimension needed for all sources found during initialisation and is assigned to the state variable \texttt{\_\_afl\_indir\_map\_size}. 
+
+If the mapped shared memory segment provisioned by the fuzzer is smaller than the required value, the runtime redirects the \texttt{\_\_afl\_indir\_map} to a dummy map, which acts as a safe sink to prevent out-of-bounds writes. All subsequent coverage updates are absorbed until the fuzzer provisions an adequately sized shared memory region.
+
+\subsubsection{The Coverage Callback}
+
+The core of the computations for the tracking mechanism is the \texttt{\_\_afl\_trace\_indir} callback, executed immediately prior to every indirect control flow transfer. To minimise runtime overhead, several performance optimisations are applied. 
+
+The callback immediately exits if the ID referenced by the guard pointer is 0 --- indicating a non-instrumented DSO --- or if the \texttt{\_\_afl\_indir\_ptr} is invalid --- either because it is 0 or because it points to the dummy map.
+
+The callback then utilises the retrieved ID as an index into the \texttt{\_\_afl\_indir\_map} array. However, to track multiple targets per indirect source, the target address undergoes a multiplicative hash. The result is masked using \texttt{INDIR\_BIT\_SHIFT} to compute a safe bit index. The index is then used to set the corresponding bit within the designated slot of the shared memory map, recording the traversed edge.
+
+Fibonacci hashing is used as it ensures a highly uniform distribution of values across the table \cite{knuth1998art3}, while also being computationally inexpensive; it can be calculated in a single clock cycle.
+
+The full callback definition is provided inside Appendix \ref{app:fuzzr}. 

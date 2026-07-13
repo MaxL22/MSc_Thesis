@@ -1,0 +1,29 @@
+\section{Fuzzer Core Orchestration}
+
+The modifications to the core of the fuzzer orchestration, spanning \texttt{src/afl-fuzz.c}, \texttt{src/afl-sharedmem.c}, and \texttt{src/afl-fuzz-bitmap.c}, focus on the allocation, reallocation, and continuous analysis of the \texttt{indir\_map}.
+
+\subsubsection{Dynamic Memory Reallocation}
+
+To determine the size of the secondary map, a probe-and-resize strategy is used.
+
+\begin{enumerate}
+    \item \textit{Initial Provisioning:} At startup, the fuzzer provides a dummy shared memory segment using the \texttt{DEFAULT\_INDIR\_SHMEM\_SIZE} macro.
+    
+    \item \textit{Handshake Resolution:} During the forkserver start sequence, the true required size is transmitted.
+    
+    \item \textit{Dynamic Reallocation:} If the reported target size differs from the currently allocated size, the fuzzer initiates a reallocation sequence. It invokes the shared memory de-initialisation function on the existing indirect map to unmap the memory, which is then reinitialised to a correctly sized contiguous block.
+\end{enumerate}
+
+\paragraph{Preserving Virgin Bits} During reallocation, the fuzzer must preserve accumulated coverage data, stored in the indirect virgin map. A naive reallocation would cause the fuzzer to forget previously explored paths.
+
+To solve this, the implementation uses \texttt{ck\_realloc} to expand the indirect virgin map allocation. The newly appended tail region of the array --- i.e., the previously unmapped guard slots --- must be initialised to \texttt{0xFF}, signifying "unseen" transitions, while keeping intact the lower indices.
+
+%The full reallocation logic is included in Appendix \ref{app:fuzzr}.
+
+\subsubsection{Vectorised Bitmap Iteration}
+
+The performance of the fuzzer depends on the efficiency of evaluating the coverage map after every execution run.
+
+Dedicated functions have been added to iterate over the map, with the size being dictated by the state of the fuzzer process, and determine whether novelty was discovered during execution or to count the number of bits set in the map for reporting purposes.
+
+The iteration uses vectorised 64-bit integer chunking, similarly to the standard coverage map, to improve performance and maintain a high throughput. Each 64-bit comparison requires a single clock cycle, as would comparisons of smaller sizes. Without the aforementioned alignment padding (Section \ref{subsub:signalprot}) applied to the map size, the iteration might fail or skip the trailing unaligned bytes.

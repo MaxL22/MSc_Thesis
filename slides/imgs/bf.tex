@@ -1,0 +1,27 @@
+\resizebox{0.6\textwidth}{!}{
+\begin{tikzpicture}[
+    cell/.style={rectangle, draw=navy, thick, text=navy, minimum width=1.2cm, minimum height=1.2cm, text centered, font=\Large},
+    pointer/.style={-Stealth, thick, navy},
+    label/.style={font=\small, text=navy!80}
+]
+    % 1. Draw the bit array
+    \node[cell] (c0) {0};
+    \node[cell, right=0cm of c0] (c1) {0};
+    \node[cell, right=0cm of c1] (c2) {0};
+    \node[cell, right=0cm of c2, fill=navy!15, text=brownish] (c3) {1}; % Highlighted target
+    \node[cell, right=0cm of c3] (c4) {0};
+    \node[cell, right=0cm of c4] (c5) {0};
+    \node[cell, right=0cm of c5] (c6) {1};
+    \node[cell, right=0cm of c6] (c7) {0};
+    
+    \foreach \i in {0,...,7} {
+        \node[label, below=0.1cm of c\i] {\i};
+    }
+    
+    \node[label, left=0.5cm of c0] {Coverage map slot};
+    \node[above=2.5cm of c3, font=\Large, draw=navy, text=navy, thick, rounded corners, inner sep=10pt] (item) {Target address \textcolor{brownish}{$x$}};
+    
+    % 4. Draw the arrow and hash function label pointing DOWN
+    \draw[pointer] (item.south) -- node[fill=white, draw=navy, text=navy, rounded corners, inner sep=4pt, pos=0.5] {\texttt{hash(\textcolor{brownish}{$x$})} $= 3$} (c3.north);
+\end{tikzpicture}
+}

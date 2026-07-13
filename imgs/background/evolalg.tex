@@ -1,0 +1,26 @@
+\begin{algorithmic}[1]
+    \State $F \gets \emptyset$ \Comment{Set of faults found}
+
+    \State $S[C] \gets InitialCorpus$ \Comment{$S$ represents the fuzzer state}
+
+    \While{\Call{ContinueFuzzing}{$S$}}
+        \State $t \gets \Call{SelectTestcase}{S[C]}$ 
+    
+        \State $N \gets \Call{Calibrate}{t, S}$ \Comment{Determines time spent on $t$}
+    
+        \For{$i \gets 1$ \textbf{to} $N$}
+            \State $t' \gets \Call{Mutate}{t}$ 
+        
+            \State $Tr \gets \Call{Execute}{T, t'}$ \Comment{Run target and obtain execution trace}
+
+            \If{\Call{IsViolation}{$Tr, t'$}}
+                \State $F \gets F \cup \{t'\}$
+            \EndIf
+
+            \If{\Call{IsInteresting}{$Tr, S$}}
+                \State $S[C] \gets S[C] \cup \{t'\}$
+            \EndIf
+        \EndFor
+    \EndWhile
+    \Return{$F$}
+\end{algorithmic}

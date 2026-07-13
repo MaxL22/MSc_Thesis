@@ -1,0 +1,29 @@
+\begin{tikzpicture}[
+    scale=0.5,
+    ->, % makes edges directed
+    >=stealth, % arrow head style
+    node distance=0.9cm and 1.5cm, % vertical and horizontal spacing
+    thick,
+    % Styling for the nodes
+    cfgNode/.style={
+        rectangle, 
+        rounded corners, 
+        draw, 
+        minimum width=1.618cm, 
+        minimum height=1cm, 
+        font=\sffamily\bfseries
+    }
+]
+
+    % Define Nodes
+    \node[cfgNode] (A) {$A$};
+    \node[cfgNode] (X) [above left=of A] {$X$};
+    \node[cfgNode] (Y) [below left=of A] {$Y$};
+    \node[cfgNode] (B) [right=of A] {$B$};
+
+    % Draw Edges
+    \draw (X) -- (A);
+    \draw (Y) -- (A);
+    \draw (A) -- (B);
+
+\end{tikzpicture}

@@ -1,0 +1,33 @@
+\section{Compile-Time Instrumentation}
+
+As already detailed (Section \ref{sec:compandinst}), visibility into the target application is achieved through compile-time instrumentation. In our solution, the instrumentation logic is integrated into the LLVM compiler infrastructure, specifically extending the existing LLVM mode's PCGUARD pass. 
+
+The instrumentation process is explicitly designed for indirect branches and consists of three primary phases: target identification, metadata allocation, and callback injection.
+
+\paragraph{Target Identification} The first phase of the instrumentation pass involves traversing the LLVM Intermediate Representation to identify instructions capable of dynamic control flow transfers. 
+
+During the traversal of each basic block, the pass filters the instruction stream to isolate two specific LLVM IR instructions: 
+\begin{itemize}
+    \item \texttt{IndirectBrInst}: Represents an indirect branch instruction --- e.g., computed \texttt{goto} statements and jump tables.
+
+    \item \texttt{CallInst}: Represents a function call. In this case, the pass further verifies that the target operand is an indirect function pointer call or a virtual method dispatch.
+\end{itemize}
+
+To maintain feature parity with the broader AFL++ ecosystem, this identification phase respects the coverage boundaries set for standard edge coverage. Fuzzing campaigns can utilise allowlists and denylists to constrain instrumentation to specific source files or functions.
+
+\paragraph{Guard Array Architecture} Once an indirect instruction has been verified and selected for instrumentation, the compiler allocates a slot to track its execution. To track each indirect branch source, our architecture utilises a metadata structure referred to as "Guard Array".
+
+For every identified indirect instruction, the compiler pass allocates a 32-bit integer slot --- a \texttt{GuardPtr} --- into a dedicated contiguous ELF section named "\texttt{\_\_sancov\_indir\_guard}" (mimicking the operation of PCGUARD mode).
+
+As the compiler processes each translation unit, it continuously appends 32-bit slots into this section. The resulting linked binary will contain a sequential array of uninitialized metadata slots, corresponding one-to-one to every instrumented indirect branch source. At runtime, these slots will be populated with unique sequential identifiers.
+
+\paragraph{Callback Injection} The final phase of static instrumentation involves modifying the target's executable code to report the control flow transition. This requires injecting a C function callback into the LLVM IR.
+
+Modifying the IR of a basic block while actively iterating over its instructions risks invalidating iterators and triggering undefined behaviour within subsequent analysis passes. To circumvent this, a two-phase approach is taken: 
+\begin{enumerate}
+    \item \textit{Collection Phase:} The pass first traverses the CFG, applying the identification and allowlist logic to build a set of valid targets.
+
+    \item \textit{Mutation Phase:} The pass performs the necessary IR modification on the collected set of targets.
+\end{enumerate}
+
+For each target instruction in the mutation set, the compiler injects a call to \texttt{\_\_afl\_trace\_indir} immediately preceding the indirect branch. The callback takes two arguments: the address of the corresponding \texttt{GuardPtr} slot and the target address of the indirect branch, which the program has just evaluated.

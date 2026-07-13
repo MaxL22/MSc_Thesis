@@ -1,0 +1,19 @@
+\section{Runtime Support}
+
+The runtime component of the indirect coverage system operates alongside the standard compiler runtime and serves as a bridge between the metadata injected by the compiler pass and the actual indirect coverage tracking mechanism of the fuzzer.
+
+Its responsibilities are manifold, spanning from the initialisation of the indirect guard array to the execution of the coverage callback.
+
+\paragraph{Guard Array Initialisation} The lifecycle of the indirect tracking mechanism begins before the target program's \texttt{main} function is executed. The LLVM compiler pass registers a module-level constructor that invokes the initialisation routine.
+
+The objective of this initialisation phase is to transition the guard slots from their uninitialized state into distinct identifiers. The function implements a linear scan across the region of the Guard Array dedicated to the corresponding module. A globally-scoped counter is increased monotonically for each indirect jump source within each module.
+
+If Dynamic Shared Objects (DSOs) are loaded into the process space --- and are instrumented --- their constructors invoke the initialisation function within the bounds of their specific \texttt{\_\_sancov\_indir\_guards} section. The runtime incorporates these new slots into the identifier namespace, ensuring a contiguous ID space across the main executable and all loaded libraries.
+
+Upon completion of the initialisation scan, the final ID value defines the maximum required index for the shared memory map. This value is then communicated to the fuzzer and used to allocate exactly the required memory before the fuzzing loop begins.
+
+\paragraph{Coverage Callback} The core of the tracking mechanism is the callback injected into the IR. This function is executed immediately prior to every indirect control flow transfer and, consequently, is optimised for minimal latency.
+
+The indirect map utilises the unique slot ID as a direct index into the map array. However, a single indirect branch source often dispatches execution to multiple distinct target addresses. To record these diverse destinations, the runtime must efficiently map the target address value to a specific bit within the source's Bloom filter.
+
+To achieve this, each destination is associated with a single bit in the source's Bloom filter using a multiplicative hash function applied to the lower 12 bits of the destination address. The hash result is then truncated to yield an index, and the bit at the corresponding position in the Bloom filter is set to 1.

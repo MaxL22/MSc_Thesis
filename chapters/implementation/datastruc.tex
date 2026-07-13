@@ -1,0 +1,42 @@
+\section{Data Structures and Core Types}
+
+To establish the tracking mechanism, several foundational data types and state variables had to be introduced.
+
+These modifications are all contained within several of the project's main headers: \texttt{include/types.h}, \texttt{include/afl-fuzz.h}, \texttt{include/sharedmem.h}, and \texttt{include/config.h}.
+
+\subsubsection{Configurable Slot Types}
+
+To provide tunable fidelity, the width of the bitfield used to track distinct targets originating from a single indirect source --- i.e., the size of each Bloom filter --- is made configurable via the compiler preprocessor. This configuration is codified by the \texttt{INDIR\_SLOT\_SIZE} compile-time macro. It defaults to a size of 64.
+
+The header \texttt{types.h} subsequently constructs the \texttt{indir\_slot\_t} alias utilising preprocessor conditionals based on the value of the aforementioned macro:
+\begin{itemize}
+    \item \texttt{INDIR\_SLOT\_SIZE == 32}: \texttt{indir\_slot\_t} resolves to \texttt{uint32\_t}.
+    
+    \item \texttt{INDIR\_SLOT\_SIZE == 64}: \texttt{indir\_slot\_t} resolves to \texttt{uint64\_t}.
+    
+    \item \texttt{INDIR\_SLOT\_SIZE == 128}: \texttt{indir\_slot\_t} resolves to \texttt{unsigned \_\_int128}.
+\end{itemize}
+
+By exclusively employing \texttt{indir\_slot\_t} across the fuzzer, the entire architecture scales to accommodate the designated slot width without requiring localised code modifications. This ensures type safety and prevents hardcoded integer sizes throughout the codebase.
+
+Alongside the type alias, the header defines the \texttt{INDIR\_BIT\_SHIFT} constant, representing the base 2 logarithm of the slot size --- e.g., 6 for 64-bit. This is used inside the callback to construct a bitmask used for the modulo reduction of the hashed target address.
+
+\subsubsection{Fuzzer State Encapsulation}
+
+The fuzzer's context is entirely encapsulated within the \texttt{afl\_state\_t} structure. This structure was extended to manage the new coverage domain. Additions include: 
+\begin{itemize}
+    \item \texttt{indir\_map}: A pointer to the shared memory region populated by the target binary.
+    
+    \item \texttt{indir\_virgin\_bits}: A persistent array storing the cumulative history of all discovered indirect path transitions across the entire campaign. This is the reference used to evaluate novelty after executions.
+    
+    \item \textit{Top Entries Structures}: Additional arrays were introduced to track and retain the inputs that maximise specific bit transitions within the indirect map, mirroring the behaviour of the primary map's top-rating system.
+\end{itemize}
+
+\subsubsection{Shared Memory IPC Metadata}
+
+The \texttt{sharedmem\_t} structure maintains the IPC primitives and metadata required to manage the shared memory segments. The structure was extended with: 
+\begin{itemize}
+    \item \textbf{\texttt{indir\_map\_size}}: An integer recording the currently allocated size of the secondary shared memory segment. This is updated whenever the fuzzer issues a reallocation based on forkserver feedback.
+    
+    \item \textbf{\texttt{indir\_shm\_id}}: The active System V IPC identifier associated with the allocated \texttt{indir\_map}.
+\end{itemize}

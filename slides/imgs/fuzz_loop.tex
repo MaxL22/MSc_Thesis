@@ -1,0 +1,41 @@
+\resizebox{0.8\textwidth}{!}{\begin{tikzpicture}[
+    node distance=1.5cm,
+    auto,
+    % Define standard styles for academic blocks
+    block/.style={
+        navy,
+        rectangle,
+        draw=navy,
+        thick,
+        fill=navy!2,          % Muted, print-friendly background
+        text width=3.2cm,
+        align=center,
+        minimum height=1.8cm,
+        font=\sffamily\small
+    },
+    % Define standard styles for arrows
+    arrow/.style={
+        ->,
+        >=Stealth,
+        thick,
+        draw=navy!80
+    }
+]
+
+% 1. Define Nodes
+\node[block] (generate) {Generate/Mutate\\Testcase};
+\node[block, right=of generate] (execute) {Execute\\Testcase};
+\node[block, right=of execute] (observe) {Observe\\behaviour};
+\node[block, right=of observe] (analyse) {Analyse\\Feedback};
+
+% 2. Draw Sequential Arrows
+\draw[arrow] (generate) -- (execute);
+\draw[arrow] (execute) -- (observe);
+\draw[arrow] (observe) -- (analyse);
+
+% 3. Draw the Feedback Loop (Academic Addition)
+% Testing cycles typically feed analysis data back into the generation phase.
+\draw[arrow, dashed] (analyse.south) -- ++(0,-1) -| (generate.south)
+    node[pos=0.25, above, font=\sffamily\scriptsize\itshape] {};
+
+\end{tikzpicture}}

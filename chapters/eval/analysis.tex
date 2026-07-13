@@ -1,0 +1,27 @@
+\section{Analysis of Results}
+
+As established in the previous sections, the failure of the modified fuzzer to outperform the baseline cannot be solely attributed to performance overhead. The lack of improvement, despite the functional mechanism, points to structural and theoretical limitations in how fuzzers interact with indirect control flow. This section details potential reasons why the indirect coverage map did not yield the expected improvements.
+
+\subsection{Redundancy with the Primary Edge Map}
+
+The primary reason why the modified architecture behaves similarly to standard AFL++ is that the new map provides almost entirely redundant feedback for fully instrumented targets. 
+
+When an indirect jump dynamically resolves to a new target block, there will almost certainly be some new direct edges to be tracked by the standard coverage map. The injected callback is invoked immediately before the indirect jump, logging the target address to the secondary map. However, immediately after the jump, the primary map still logs the new edges encountered.
+
+Consequently, every time the secondary map reports a new target, the primary map simultaneously reports a new edge. Because the fuzzer requires only one of the maps to signal novelty to preserve the seed, the indirect map does not force the fuzzer to save any seed it would not have already discovered through standard mechanisms.
+
+\subsection{Other Limiting Factors}
+
+Beyond the fundamental redundancy issue, several other structural limitations prevent the secondary coverage map from driving deeper program exploration.
+
+\subsubsection{Mutation Engine Limitations}
+
+Discovering new indirect targets often requires the fuzzer to create specific data structures, such as memory pointers or function pointer tables. Standard mutators are effective at breaking simple conditional comparisons but are inadequate for guessing valid pointers \cite{aschermann2019redqueen, rawat2017vuzzer, wang2010taintscope}. 
+
+Even if the secondary map is fully capable of tracking new indirect targets, the standard mutation engine might not be capable of generating the inputs required to satisfy the constraints needed to reach them without further assistance.
+
+\subsubsection{Target Sparsity}
+
+In many standard C/C++ benchmarks, the actual state space of possible indirect jump targets is relatively small. Once the few possible novelties for each source have been exhausted, the secondary map will never produce another "new bit" for the call site.
+
+We observed that most sources have only one or two possible targets, with the exception of a few with significantly more --- e.g., interpreter dispatch blocks. These can be exhausted very quickly and provide minimal feedback.

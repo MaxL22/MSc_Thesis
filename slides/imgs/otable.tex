@@ -1,0 +1,17 @@
+\begin{table}[htbp]
+\footnotesize
+\centering
+\begin{tabular}{lrrrrr}
+\toprule
+& \multicolumn{4}{c}{\textbf{Throughput by Configuration (exec/s)}} \\
+\cmidrule(l){2-5}
+\textbf{Target} & \textbf{32 bit} & \textbf{64 bit} & \textbf{128 bit} & \textbf{Default} & \textbf{Overhead} \\
+\midrule
+\textbf{libxslt} & 586.28 & 644.88 & 587.78 & 698.71 & \textbf{+13.22\%} \\ 
+\textbf{mruby} & 70.10 & 75.42 & 74.82 & 79.10 & \textbf{+7.15\%} \\ 
+\textbf{openssl} & 2732.29 & 2610.04 & 2836.24 & 3644.51 & \textbf{+25.20\%} \\ 
+\textbf{sqlite3} & 407.75 & 424.23 & 381.44 & 452.38 & \textbf{+10.59\%} \\ 
+\textbf{systemd} & 115.13 & 110.06 & 111.76 & 110.53 & \textbf{-1.62\%} \\ 
+\bottomrule
+\end{tabular}
+\end{table}

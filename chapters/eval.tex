@@ -1,0 +1,14 @@
+\chapter{Evaluation}
+\label{ch:eval}
+
+This chapter presents an empirical evaluation of the proposed architecture. The primary objective is to assess whether tracking indirect control flow through a secondary coverage map yields tangible improvements in path discovery and overall fuzzing efficacy when compared to standard techniques.
+
+To evaluate the system, we compare the baseline AFL++ fuzzer against our modified architecture across a diverse set of real-world benchmarks, chosen for their varying levels of reliance on indirect branching. The evaluation is structured to address the core performance and coverage metrics that define a fuzzer's success.
+
+\input{chapters/eval/setup}
+
+\input{chapters/eval/coverage}
+
+\input{chapters/eval/overhead}
+
+\input{chapters/eval/analysis}

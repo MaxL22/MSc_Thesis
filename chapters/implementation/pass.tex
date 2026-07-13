@@ -1,0 +1,24 @@
+\section{LLVM Pass and Instrumentation}
+
+Modifications to the \texttt{SanitizerCoveragePCGUARD} pass serve to statically identify indirect control flow transfers and inject the tracking metadata and runtime callbacks. The core of the indirect jump tracking mechanism relies on targeted compile-time modifications.
+
+\subsubsection{The Guard Array Architecture}
+
+When the pass executes, it identifies all valid indirect branches within a function. For each function containing at least one indirect branch or call, the pass generates a local array of integers with a length equal to the number of indirect instructions identified.
+
+The compiler assigns a specific section attribute to these arrays: \texttt{\_\_sancov\_indir\_guards}. The linker guarantees that all such arrays, scattered across different translation units, are concatenated into a contiguous region within the final ELF binary.
+
+For each instruction, the compiler calculates the address of its corresponding element within the guard array, yielding a value that represents the memory location of the slot assigned to that instruction, which enables guard pointer resolution at runtime.
+
+\subsubsection{Instruction Injection}
+
+The primary objective of the instrumentation pass is to inject the callback \texttt{\_\_afl\_trace\_indir} immediately before the execution of any indirect branch. A new, separate routine is added to manage this modification in a two-phase operation: first, all relevant \texttt{IndirectBrInst} and \texttt{CallBase} instructions are aggregated; then, the pass allocates the corresponding guard slot and prepares to inject the callback.
+
+During callback injection, the compiler utilises an \texttt{IRBuilder} immediately before the target instruction, creating the callback with the following signature:
+\begin{minted}{c}
+void __afl_trace_indir(uint32_t *guard, uintptr_t target_addr);
+\end{minted}
+
+The pass provides the following arguments: the pointer to the instruction's 32-bit slot in the \texttt{\_\_sancov\_indir\_guards} section and the resolved destination address of the \texttt{jump} or \texttt{call}.
+
+The LLVM pass operates independently of the \texttt{INDIR\_SLOT\_SIZE} macro; its sole responsibility is to pass the pointer to the 32-bit sequential ID. Interpretation and scaling based on slot width are handled entirely within the compiler runtime.

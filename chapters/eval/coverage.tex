@@ -1,0 +1,33 @@
+\section{Edge Coverage and Path Discovery}
+
+This section presents the primary metrics used to evaluate the efficiency of the proposed modifications: total region coverage and queue size. We compare the standard AFL++ baseline with the modified versions across all targets.
+
+\subsubsection{Total Edge Coverage}
+
+The primary indicator of a fuzzer's overall success is the total number of unique code regions discovered over time. To measure this, coverage analysis was performed using \texttt{llvm-cov}. For each campaign, we gathered the inputs saved in the fuzzer's queue and replayed them against an \texttt{llvm-cov}-instrumented binary. By ordering the queue inputs by creation timestamp, we computed the cumulative region coverage over the 24-hour fuzzing campaigns.
+
+The following plots illustrate the average region coverage growth for each benchmark over 24 hours.
+
+\input{imgs/eval/plots}
+
+\newpage
+
+The results reveal that, across all tested benchmarks, the modified fuzzer configurations did not achieve a breakthrough in path discovery. In fact, the baseline AFL++ consistently performed either on par with or slightly better than the modified versions in terms of discovered regions within the given time frame.
+
+Table \ref{tab:region_coverage} shows the cumulative region coverage at the end of the campaign for each target and configuration.
+
+\input{imgs/eval/cov_table}
+
+Variations across configurations are generally minor. The 32-bit configuration more consistently results in the lowest region coverage among the modified setups. This can be attributed to a higher probability of collisions within the smaller Bloom filter, which saturates prematurely. The 64-bit and 128-bit configurations performed marginally better; however, they consistently failed to outperform the vanilla AFL++ baseline.
+
+\subsubsection{Corpus Size}
+
+The fuzzer's corpus (or queue) size indicates the number of unique "interesting" test cases retained during the campaign. A steadily growing queue typically indicates the continuous discovery of new paths.
+
+The final queue sizes at the end of the campaigns are summarised in Table \ref{tab:corpus_sizes}.
+
+\input{imgs/eval/queue_table}
+
+The queue size dynamics closely mirror the region coverage data. Across all targets, the baseline AFL++ and the modified configurations maintain similar queue sizes.
+
+This strongly implies that the indirect map rarely triggered additional seed saves. When an indirect branch was resolved dynamically, the input was almost always already flagged as "interesting" by the primary coverage map.

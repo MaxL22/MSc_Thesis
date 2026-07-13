@@ -1,0 +1,144 @@
+\section{Compilation and Instrumentation}
+\label{sec:compandinst}
+
+Without execution telemetry, a fuzzer is essentially blind. To achieve visibility, the fuzzer must inject monitoring logic into the target program. Implementing an observer generally involves modifying the binary to report every basic block transition traversed during the execution via instrumentation.
+
+However, instrumentation is not a monolithic process. In AFL++, there are multiple compile-time strategies available, which heavily dictate both the accuracy of the resulting coverage map and the performance overhead of the fuzzing loop.
+
+AFL++ introduces three distinct compilation modes:
+\begin{itemize}
+    \item \textit{LLVM Mode}: Operates at the LLVM IR level, removing the need for assembly rewriting. It provides efficient basic-block instrumentation while laying the groundwork for more advanced features.
+    
+    \item \textit{LTO Mode}: Uses Link-Time Optimization to guarantee a collision-free coverage bitmap.
+
+    \item \textit{GCC Plugin Mode}: It uses GCC compiler plugins, since not all codebases can be easily migrated to the LLVM infrastructure. It provides an essential, high-performance bridge without requiring a compiler toolchain overhaul.
+\end{itemize}
+
+In scenarios where source code is unavailable (such as proprietary or legacy software) AFL++ leverages emulation or dynamic binary instrumentation --- such as QEMU or FRIDA --- to inject execution tracking logic at runtime, accepting higher performance overhead for maintaining visibility.
+
+\subsection{LLVM Mode}
+\label{sub:llvmmode}
+
+LLVM mode --- typically invoked using the flag \texttt{--afl-llvm}, the environment variable \texttt{AFL\_CC\_COMPILER=LLVM}, or via the compiler wrappers \texttt{afl-clang-fast} and \texttt{afl-clang-fast++} --- serves as the modern standard for instrumenting source-available targets.
+
+This mode operates strictly at the LLVM Intermediate Representation (IR) level, removing the need for brittle assembly rewriting. Consequently, this allows the compiler to treat injected instrumentation as native code, allowing standard optimisation passes to optimise it alongside the target program and reduce performance overhead. Furthermore, operating at the IR level also means that the instrumentation is architecture-agnostic and generally independent of the target CPU architecture.
+
+To fully leverage the LLVM framework, AFL++ implements its instrumentation as a custom LLVM compiler pass. Passes execute all transformations and optimisations of the compiler, compute the analysis results required by these operations, and serve as the architectural framework for compiler code \cite{writingllvmpass}.
+
+The compiler wrappers work as drop-in replacements for the standard C/C++ compilers. When invoked, they execute the standard Clang compiler but instruct it to load AFL++'s custom shared object --- the instrumentation pass --- during the intermediate compilation pipeline. The final linking phase is equally important, as the compiler wrapper links the static library for the compiler runtime, whose primary responsibility is setting up the shared memory region for the coverage map and initializing the forkserver. 
+
+\subsubsection{PCGUARD Instrumentation}
+
+AFL++ heavily leverages and extends LLVM's \texttt{SanitizerCoverage} infrastructure. Rather than manually traversing the CFG to find every edge, AFL++'s \texttt{SanitizerCoveragePCGUARD.so.cc} pass performs the following:
+\begin{enumerate}
+    \item \textit{Block selection and pruning:} The pass iterates over all basic block structures in a function, then uses Dominator and Post-Dominator trees to identify blocks where coverage tracking is redundant (e.g., a block that has a single predecessor and a single successor). These blocks can be skipped \cite{agrawal1994dominators} to reduce overhead.
+
+    \item \textit{Guard Allocation:} For every instrumented block, the compiler reserves a 32 bit slot in a dedicated ELF section (\texttt{\_\_sancov\_guards}). At compile-time, these are uninitialized integers. 
+
+    \item \textit{Inline IR Injection:} For each selected basic block, LLVM IR is injected at the start of the block:
+    \begin{itemize}
+        \item It creates an \texttt{IntToPtr} lookup into the \texttt{sancov\_guards} array using a unique index for that block.
+        
+        \item It loads the 32-bit coverage ID from that guard slot.
+        
+        \item It uses a \texttt{GetElementPtr} (GEP) instruction to calculate the exact byte address within the \texttt{\_\_afl\_area\_ptr} (the shared memory map bridging the fuzzer and target) using the loaded coverage ID.
+        
+        \item It loads the current 8-bit counter from that shared memory byte, increments it, and stores it back.
+    \end{itemize}
+    See Appendix \ref{app:llvmir} for an example of standard injected LLVM IR.
+\end{enumerate}
+
+\paragraph{Initialisation of Guards} The mode relies on an array of guard variables, which must be initialised at runtime. The compiler groups all \texttt{\_\_sancov\_guards} across different translation units. At load time, a constructor function provided by the compiler runtime is executed (\texttt{\_\_sanitizer\_cov\_trace\_pc\_guard\_init}). This runtime function iterates over all 32-bit guard pointers, assigning a random pseudo-unique ID to each one, bounded by the shared memory size. This allows mapping the CFG basic blocks to random slots in the fuzzer's shared bitmap.
+
+\subsubsection{Classic Tracing}
+
+When PCGUARD is not available, AFL++ falls back to "Classic" tracing mode. The pass \texttt{afl-llvm-pass.so.cc} computes edge coverage using the original AFL coverage formula \cite{zalewski2014afltech}:
+\[
+    \text{map}[\text{cur\_loc} \oplus (\text{prev\_loc} \gg 1)] \mathrel{{+}{=}} 1
+\]
+
+In this design, \texttt{cur\_loc} is a pseudo-random identifier statically assigned at compile-time, while \texttt{prev\_loc} holds the identifier of the previously executed block. To maintain execution context across the program, the injected instrumentation must save the current block's identifier into a thread-local variable before transferring control flow to the subsequent block.
+
+The bitwise right shift ($\gg 1$) is necessary to distinguish edge $A \rightarrow B$ from $B \rightarrow A$, since the XOR operation is commutative. Not modifying one of the operands would result in symmetric transitions, losing the sequence's directionality. It also prevents self-loops ($A \rightarrow A$) from always being mapped to index 0.
+
+\subsection{LTO Mode}
+
+In standard LLVM mode, every C/C++ source file (translation unit) is compiled and instrumented entirely independently, with no view of the global program. This inevitably leads to map collisions when linking multiple object files, as random basic block IDs might overlap.
+
+Link-Time Optimization (LTO) mode addresses this inefficiency by shifting the instrumentation process to the final linking phase. By operating with global visibility, the AFL++ LTO instrumentation pass (\texttt{SanitizerCoverageLTO.so.cc}) can uniquely identify each edge. As a result, LTO mode guarantees a collision-free coverage bitmap. By eliminating index overlaps, the fuzzer receives better edge coverage granularity, improving the accuracy of the feedback loop.
+
+However, these benefits are tied to stricter toolchain requirements, requiring LLVM version 12+ to natively allow the LLVM linker to load plugins.
+
+\paragraph{The LTO Solution} With this mode, AFL++ defers final compilation and optimization until the linking phase, intercepted via the compiler wrappers \texttt{afl-clang-lto} and \texttt{afl-clang-lto++}.
+
+When compiling source code with the wrappers, the compiler passes the \texttt{-flto=full} flag to LLVM, instructing it to emit LLVM bitcode instead of the final machine code.
+
+At link time, the custom linker \texttt{afl-ld-lto} invokes AFL++'s specialized linker pass. With global visibility into the CFG of the entire program, there is no need for random IDs, instead, it iterates through every block across the entire binary and assigns a contiguous, monotonically increasing identifier to every edge.
+
+\subsubsection{LTO-Exclusive Features}
+
+\paragraph{Autodictionary} By analysing the whole program at once, the linker can see every single constant string across all linked libraries and object files. During the LTO pass, it automatically scrapes these strings and generates a binary dictionary structure explicitly embedded within a specific ELF section of the target binary.
+
+The AFL++ runtime extracts this dictionary when starting the target, immediately integrating it into its mutation strategies.
+
+\paragraph{Fixed Memory Map Address} To eliminate the overhead associated with dynamically looking up the shared memory map pointer in the Global Offset Table (GOT), LTO mode can hardcode the absolute memory address of the shared memory region directly into the assembly of the coverage instructions. 
+
+This can crash targets that utilize early constructors, deferred forkservers or anything that might conflict with OS memory layout or ASLR.
+
+\paragraph{Document Edge IDs} The compiler outputs a comprehensive mapping of every assigned Edge ID to its corresponding function and file name.
+
+\subsection{GCC Plugin Mode}
+
+LLVM and LTO modes inherently rely on the target software being compatible with the LLVM compiler toolchain. In practice, not all codebases can be easily migrated to the LLVM infrastructure. Legacy systems and heavily architecture-dependent projects often cannot be compiled using Clang.
+
+To maintain efficient execution insights, AFL++ incorporates the GCC plugin mode, replacing the assembly-level rewriting approach of the original \texttt{afl-gcc}. Instead of inserting assembly blocks directly into the compiled output, this mode operates at the compiler level via true GCC plugins. This ensures that the target can still benefit from compile-time instrumentation and optimisations while remaining tied to the GCC ecosystem.
+
+To build with \texttt{afl-gcc-fast}, the host system must have GCC version 4.5.0 or newer and the corresponding \texttt{gcc-VERSION-plugin-dev} installed.
+
+\paragraph{GIMPLE Pass Injection} The GCC compiler uses several intermediate representations, most notably GIMPLE \cite{gccinternals}. The AFL++ plugin registers a custom pass that operates on the GIMPLE trees. The pass \texttt{afl-gcc-pass.so.cc} acts as a GIMPLE pass which iterates over all basic blocks within a function and: 
+\begin{enumerate}
+    \item Assigns a random integer ID to all basic blocks.
+
+    \item Constructs GIMPLE statements to calculate the standard AFL edge coverage formula.
+
+    \item Emits a GIMPLE memory load/store sequence to increment the corresponding byte in the \texttt{\_\_afl\_area\_ptr} shared memory map.
+\end{enumerate}
+
+Because it relies strictly on GCC's plugin API and GIMPLE, this mode lacks the deeper analysis features found in LLVM, such as LAF-Intel (Split Compares), autodictionary and context-sensitive coverage.
+
+\subsection{Black-Box Binary Instrumentation}
+\label{subsec:bbb-instr}
+
+When source-code is unavailable, compile-time instrumentation is impossible. To fuzz a black-box binary efficiently, dynamic binary instrumentation (DBI) or static binary rewriting is required. 
+
+AFL++ offers extensive support for binary-only targets through several modes and integrations. The choice of mode depends largely on architecture, operating system, performance requirements and stability of the target. 
+
+FRIDA or QEMU mode with persistent mode are the fastest, provided stability is high enough.
+
+\subsubsection{QEMU Mode}
+
+QEMU mode utilizes a patched version of QEMU running in user space emulation to instrument black-box, closed source binaries dynamically. It translates the target binary instructions into Tiny Code Generator (TCG) intermediate representation and injects AFL++ coverage collection instrumentation.
+
+AFL++ can hook directly in the translation phase from machine code into TCG. When a new basic block is encountered and translated, the equivalent of the AFL coverage logging instruction is injected into the TCG block. Once translated, these cached blocks execute natively on the host.
+
+\paragraph{Persistent Mode} It's the most significant performance enhancement, speeding up execution by several factors. This mode allows a target loop to be executed continuously within the same process, without forking for every attempt.
+
+\subsubsection{FRIDA Mode}
+
+This mode is an alternative to QEMU mode, usually with comparable performance, if not slightly faster. It is designed to be a drop-in replacement for QEMU mode, mimicking its environment variables (replacing \texttt{QEMU} with \texttt{FRIDA} in the name).
+
+FRIDA mode operates by injecting a shared library \texttt{afl-frida-trace.so} into the target process. This relies on the \texttt{frida-gum} devkit and its dynamic translation engine ``\textit{Stalker}''.
+
+Instead of full emulation, Stalker dynamically translates code basic block by basic block, injecting assembly snippets directly into the translated blocks. This model allows the fuzzer to inject execution tracking logic directly into the memory space of a running process.
+
+\paragraph{FASAN: FRIDA Address Sanitizer Mode} Unlike QEMU mode --- which crashes if combined with ASAN --- FASAN allows injecting the same memory safety constraints at runtime. The dynamic loader intercepts standard memory functions and FRIDA dynamically instruments all memory operand instructions in the target binary, inserting calls provided by the ASAN dynamic shared object to validate read/writes operations against the shadow memory.
+
+\subsubsection{Other Modes}
+
+\paragraph{Nyx Mode} This mode shifts the paradigm to full-system emulation. Built upon a modified KVM and QEMU hypervisor, Nyx is designed to handle complex, stateful targets, kernel components or targets that cannot utilize persistent mode. Instead of utilizing forks, it utilizes KVM-based snapshots to revert the VM state.
+
+\paragraph{Unicorn Mode} It's based on the Unicorn Engine, a fork of QEMU, and the instrumentation is, therefore, very similar. While QEMU provides a full Linux user-space environment, Unicorn Mode provides no environment at all; it simply emulates CPU instructions. Consequently, this mode requires writing a custom runtime harness to handle all memory mapping, register initialization, and syscall interception manually.
+
+\paragraph{CoreSight Mode} This is AFL++'s hardware-assisted tracing solution, specifically designed for Arm64 architectures. It leverages ARM CoreSight technology to use the physical CPU's hardware trace macrocells to record control flow execution \cite{shan2023crowbar}. The CPU directly writes execution branch data into memory, which then has to be decoded. 
+
+\paragraph{Binary Rewriters} These are external tools that can inject AFL++ coverage instrumentation directly into the binary either statically on disk --- such as ZAFL \cite{nagy2021breaking}, RetroWrite \cite{dinesh2020retrowrite} or Mcsema \cite{dinaburg2014mcsema} --- or dynamically at load/run time --- such as Dyninst \cite{buck2000api}.

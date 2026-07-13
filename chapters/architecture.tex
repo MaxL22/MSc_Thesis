@@ -1,0 +1,20 @@
+\chapter{Architecture}
+\label{ch:arch}
+
+As shown in Section \ref{ch:afl}, traditional edge coverage relies on a single shared memory bitmap and a hashing function to track execution paths. This approach is highly performant and has led to thousands of bugs being found in recent years \cite{ossfuzz}. 
+
+However, indirect jumps are generally not explicitly tracked and still present a challenge. While these dynamic jumps can be instrumented at compile time, they inherently represent a 1-to-$N$ control-flow mapping, where a single call site may resolve to numerous distinct targets at runtime. 
+
+Attempting to capture this execution within a traditional, fixed-size coverage map significantly increases the probability of collisions. Alternatively, in collision-free modes, it would inflate the size of the map. Either scenario potentially degrades the fuzzer's efficacy. 
+
+In this chapter, we describe our solution, which addresses these problems by introducing a secondary coverage map dedicated exclusively to tracking indirect jumps.
+
+\input{chapters/architecture/ibp}
+
+\input{chapters/architecture/sicm}
+
+\input{chapters/architecture/compinst}
+
+\input{chapters/architecture/runtimesupp}
+
+\input{chapters/architecture/execeval}

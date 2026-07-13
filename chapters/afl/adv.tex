@@ -1,0 +1,111 @@
+\section{Advanced Features}
+
+Standard fuzzing campaigns often encounter significant bottlenecks when faced with highly structured input formats, deep execution states, or complex checksums. When applied to these targets, fuzzers can run into "path starvation", expending large amounts of energy on superficial code paths.
+
+To overcome problems such as these, AFL++ integrates mechanisms to bypass complex program states and modify the behaviour of mutation and scheduling.
+
+\subsection{Advanced Coverage Metrics}
+
+A fundamental constraint in CGF efficiency is how the fuzzer perceives the program state. Standard edge-based feedback allows the fuzzer to observe only the immediate transition between two basic blocks, sometimes resulting in lost feedback if novel program states reuse code paths.
+
+AFL++ implements different coverage metrics that attempt to solve this problem by enriching the coverage map calculation with additional information, allowing the fuzzer to better differentiate between execution paths.
+
+\subsubsection{Context-Sensitive Branch Coverage}
+
+In some codebases, a single utility function might be called from many different locations. Since the standard coverage metric is based on a single edge, to the fuzzer the internal control flow of the utility function appears to be identical, regardless of the component that called it. To solve this insensitivity to context, the fuzzer incorporates the state of the call stack into the edge index computation. 
+
+AFL++ does this by assigning a unique ID to every function at compile time and saving a hash of the call stack inside Thread-Local Storage (TLS), which is then XORed with the standard edge index calculation. 
+
+The hash is calculated by injecting an instruction to XOR the TLS value with the function ID at each function start and return.
+
+\subsubsection{N-Gram Branch Coverage}
+
+Traditional grey-box fuzzing measures code coverage considering only the current basic block and the preceding one. While efficient, this can lead to \textit{path collision}, where semantically divergent execution paths can converge on the same block transition, indistinguishable to the fuzzer.
+
+To solve this, AFL++ integrates N-Gram Branch Coverage \cite{wang2019sensitive}. This metric expands the state memory of the fuzzer, allowing it to trace execution histories of length $N$.
+
+\begin{figure}
+    \centering
+    \resizebox{0.5\textwidth}{!}{
+        \input{imgs/afl/cfgex1}
+    }
+    \caption{Example of CFG}
+    \label{fig:cfgex1}
+\end{figure}
+
+In the example represented in Figure \ref{fig:cfgex1}, under standard AFL++, the transition $A \rightarrow B$ looks identical regardless of the starting block. Under an N-Gram model with $N > 2$, the two possible paths evaluate to distinct hashes, rewarding the fuzzer for discovering a new path.
+
+AFL++ implements this by keeping track of the last $N-1$ previous blocks via an array and injecting instrumentation to modify it at every basic block.
+
+This mode substantially enhances the fuzzer's sensitivity to complex state machines and sequential parsing logic, but it also greatly increases the number of unique identifiers generated.
+
+\subsubsection{Ball-Larus Path Coverage}
+
+Each edge, even when augmented via context sensitivity or N-Gram coverage, inherently remains a decomposition of control flow. However, developers often think about code in terms of logical paths. 
+
+To align the fuzzer's feedback with the true semantic topology of the target program, Ball-Larus Path Coverage treats functions as Directed Acyclic Graphs (DAGs), assigning a unique identifier to every complete acyclic route through a function. 
+
+The Ball-Larus algorithm \cite{ball1996efficient} establishes a method for generating a perfect minimal hash for all paths in an acyclic control graph.
+
+The CFG of a function is transformed into a DAG by removing all loop-back edges. Loops are effectively treated as a single block. Then the graph is traversed from exit back to entry and an integer is assigned to each edge such that the sum of the weights along any path from entry to exit uniquely equates to an integer in the range $[0, NPaths - 1]$ --- with $NPaths$ being the total number of paths in the graph.
+
+During execution, an integer is set to 0 on function entry. As control flows through edges, the weight of each traversed edge is added to the counter. On function exit, the final value of the accumulator uniquely represents the path traversed.
+
+Because of the possible combinatorial explosion in the number of total acyclic paths, AFL++ introduces collapse heuristics. There are various configurations, from strict adherence to the Ball-Larus algorithm to considering only behavioural path divergence, tracked by using a maximum instead of a sum for the number of path counts. 
+
+\subsection{CmpLog Mode}
+
+Standard coverage-guided fuzzers rely on byte-level bit flips and other random mutations to explore an application's state space. While these mutations are effective for broad structural vulnerabilities, they struggle when encountering blocks such as multi-byte comparisons, checksums or parser constraints.
+
+When employing random mutations, the probability of correctly guessing a 64-bit integer is $1$ in $2^{64}$. Solving these constraints has traditionally been done with analysis techniques such as symbolic execution. These approaches, while correct, can be orders of magnitude slower than native execution.
+
+To bypass the costs of symbolic execution, the Redqueen algorithm \cite{aschermann2019redqueen} proposed a solution rooted in the concept of input-to-state correspondence, i.e., the premise that during the execution of a program parts of the input frequently end up in the program state unmodified, or with predictable encoding.
+
+When a highly constrained conditional branch is evaluated, the operands of the comparison instruction or routine often consist of a component derived from the fuzzer's input, an expected constant, or a dynamically generated value.
+
+If a fuzzer can actively monitor and log these operands during execution, it can avoid formally modelling the application's constraints. The fuzzer can directly observe that a specific value is being compared against the execution context. By actively substituting the expected value into the original input the constraint is immediately solved.
+
+AFL++ realises this framework through its CmpLog instrumentation mode. The fuzzing process is divided into two binaries: one for coverage and one with specialized hooks before every memory or string comparison.
+
+When the fuzzer discovers a new path that is heavily constrained or stalling, the fuzzer submits the input to the CmpLog binary. The fuzzer then parses the information given by the additional instrumentation, identifying the values required to traverse previously failed conditional branches.
+
+The Redqueen mutator then attempts to localize these values within the original input --- a process known as \textit{Colourisation}. If the fuzzer can determine which input bytes directly influence comparison operands, it injects the logged target values to satisfy the constraints.
+
+\subsection{MOpt-Adaptive}
+
+Traditionally, stochastic mutations in fuzzers are determined by static probability distributions. This does not take into account the responses of different target applications. For instance, a parser might benefit disproportionately from block splicing, while a cryptographic library might yield more coverage through bit flips.
+
+The MOpt algorithm \cite{lyu2019mopt} models the selection of mutation operators as a Multi-Armed Bandit problem (MAB). The initial implementation utilized Particle Swarm Optimization (PSO) to dynamically update the selection probabilities of mutation operators based on their empirical efficiency during a "pilot" phase.
+
+AFL++ evolved this concept, abandoning PSO in favour of a context-aware MAB framework, stabilised by simulated annealing, exponential decay, and an exploration-exploitation floor. The innovation lies in recognizing that the efficacy of a mutation is not strictly a property of the target application, but rather of the fuzzing context. 
+
+\paragraph{Contextual space} The algorithm partitions the fuzzer's state into a set of discrete contexts, parametrised by two dimensions: 
+\begin{itemize}
+    \item \textit{Input mode:} Categorising the structure of the seed input; it can be "Generic", "Text" and "Binary".
+
+    \item \textit{Fuzzing mode:} Categorising the objective of the current fuzzing iteration. This can be "Explore", aimed at broad state discovery, and "Exploit", aimed at highly favoured paths.
+\end{itemize}
+The probability distribution of mutation operators is independently learned and maintained for each context.
+
+\paragraph{Efficacy Measurement} To establish the utility of each mutation operator $i$, MOpt-Adaptive tracks two primary metrics per operator within the active context: "Uses" $U_{i,t}$, representing the number of times an operator has been applied, and "Finds" $F_{i,t}$ representing the number of times the operator successfully contributed to the discovery of a new path.
+
+Both metrics are subject to exponential decay, to prevent historical performance from dominating the future utility. This way, the learned probability distribution remains sensitive to recent features of the application.
+
+There is also a starting static distribution $P$, whose weight decreases linearly over time, down to a minimum floor.
+
+The final probability weight $W_i$ for an operator is a convex combination
+\[
+    W_i = (1 - \varepsilon) \cdot \frac{F_i}{U_i} + \varepsilon \cdot P_i
+\]
+
+This weight is quantised in discrete slots, for faster look-up by using a table. There is an exploration floor; no operator can have fewer than one slot.
+
+The learned distribution is also compared against the predefined static distribution. If the learned array fails to demonstrably outperform the static array's rate of discovery, the fuzzer will naturally fall back to the static distribution.
+
+\subsection{Custom Mutators}
+
+To breach parsing boundaries in complex targets, the mutation engine must have awareness of the input domain. By exposing the custom mutator API, AFL++ allows injecting domain-specific knowledge into the fuzzing loop.
+
+A custom mutator is an external module --- dynamically loaded into the AFL++ process --- that intercepts the mutation phase, allowing for structure-aware alterations. The custom mutator is positioned as the first non-deterministic stage, ensuring that domain-specific mutations are prioritized. It is also possible to enforce the use of custom mutators exclusively, disabling AFL++'s intrinsic mutation stages. This capability is achieved through a series of callbacks managed by the fuzzer process.
+
+By implementing hooks such as \texttt{afl\_custom\_fuzz} and \texttt{afl\_custom\_post\_process}, mutators can translate inputs into intermediate representations, perform targeted structural manipulations (e.g., altering Abstract Syntax Tree nodes), and serialize them back into a valid format. When confronting targets with syntactic constraints, this domain-aware approach ensures that test cases bypass superficial validation layers, allowing the evolutionary algorithm to focus on uncovering vulnerabilities within the deeper logic of the application.

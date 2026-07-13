@@ -1,0 +1,128 @@
+% !TeX spellcheck = en_UK
+\documentclass[12pt,english]{report}
+\usepackage{tesi}
+
+\usepackage[a4paper]{geometry}		% Formato del foglio
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}			% Supporto per UTF-8
+\usepackage[a-1b]{pdfx}				% File conforme allo standard PDF-A (obbligatorio per la consegna)
+
+\usepackage{graphicx}				% Funzioni avanzate per le immagini
+\usepackage{hologo}					% Bibtex logo with \hologo{BibTeX}
+\usepackage{epsfig}				    % Permette immagini in EPS
+\usepackage{xcolor}                 % Gestione avanzata dei colori
+\usepackage{amssymb,amsmath,amsthm} % Simboli matematici
+\usepackage{listings}				% Scrittura di codice
+\usepackage{url}					% Visualizza e rendere interattii gli URL
+\usepackage[pdfa]{hyperref}			% Rende interattivi i collegamenti interni
+\usepackage{tikz}                   % Permette di disegnare inline
+\usepackage{import}
+\usepackage{float}
+\usepackage{xstring}                % Permette di usare la funzione \IfInteger
+\usepackage{array}                  % Permette di usare colonne "m" dentro table
+\usepackage{multirow}               % Permette di creare tabelle con righe multiple
+\usepackage{caption}                % Roba per le figure side-by-side
+\usepackage{subcaption}             % Roba per le figure side-by-side
+\usepackage{enumitem}               % Gestione delle liste
+\graphicspath{{imgs/}}
+\usepackage{minted}
+\usepackage{booktabs}
+
+\usepackage[backend=biber, style=numeric]{biblatex}
+\addbibresource{bibliography.bib}
+
+\usetikzlibrary{positioning}
+\usetikzlibrary{calc}
+\usetikzlibrary{shapes}
+
+\usepackage[autostyle = false]{csquotes}
+\MakeOuterQuote{"}
+\usepackage{setspace}
+\usepackage{algorithm}
+\usepackage[noEnd=true]{algpseudocodex}
+\usepackage{etoolbox} 
+\AtBeginEnvironment{algorithmic}{\setstretch{1.3}}
+
+\newcommand{\GeneraSchemaPacchetto}[2]{{
+		\begin{tikzpicture}
+			[
+			box/.style={draw,rectangle,minimum width=\recminwidth, 
+				minimum height=\rectangleheight, 
+				outer sep=0pt, node distance=0pt}
+			]
+			
+			\def\rectangleheight{1cm}
+			\def\recminwidth{2cm}
+			
+			\foreach \name/\size in {#1} {
+				\node[box, label={below:\small \texttt{\size{} byte}}] (0) {\texttt{\name}};
+			}    
+			
+			\foreach \name/\size [count=\i] in {#2}
+			{
+				\pgfmathtruncatemacro\prevposition{\i - 1}
+				\node[box, right = 0pt of \prevposition,
+				label={below:\small \texttt{\IfInteger{\size}{\size\ byte}{\size}}}
+				] (\i) {\texttt{\name}};
+			}
+		\end{tikzpicture}
+}}
+
+\def\myCDL{Master's Degree Course in \\ Computer Science}
+
+% TITOLO TESI:
+%\def\myTitle{Smthng about Fuzzing, probably}
+%\def\myTitle{Improving Coverage-Guided Fuzzing through Bloom Filter-Based Coverage Maps}
+\def\myTitle{Evaluation of Bloom Filter-Based coverage Maps in Coverage-Guided Fuzzing}
+
+% AUTORE:
+\def\myName{Massimo Perego}
+\def\myMat{ID Number 54204A}
+
+% RELATORE E CORRELATORE: 
+\def\myRefereeA{Prof. Andrea Lanzi}
+\def\myRefereeB{Prof. Flavio Toffalini}
+
+% ANNO ACCADEMICO
+\def\myYY{2025-2026}
+
+% Il seguente comando introduce un elenco delle figure dopo l'indice (facoltativo)
+%\figurespagetrue
+
+% Il seguente comando introduce un elenco delle tabelle dopo l'indice (facoltativo)
+%\tablespagetrue
+
+\theoremstyle{definition}
+% \newtheorem{defin}{Definition}[section]
+\newtheorem{defin}{Definition}
+
+
+\begin{document}
+	
+	\frontespizio
+	\afterpreface
+
+    \include{chapters/intro}
+
+    \include{chapters/background}
+
+    \include{chapters/afl}
+
+    \include{chapters/architecture}
+    
+    \include{chapters/implementation}
+    
+    \include{chapters/eval}
+    
+    \include{chapters/conclusions}
+
+    \printbibliography
+    
+	\addcontentsline{toc}{chapter}{Bibliography}
+    
+	\appendix
+
+    \include{appendices/appa}
+    
+    
+\end{document}

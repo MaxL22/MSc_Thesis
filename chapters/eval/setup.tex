@@ -1,0 +1,28 @@
+\section{Experimental Setup}
+
+This section outlines the hardware environment, the selected target programs, the fuzzer configurations under test, and all other parameters concerning the fuzzing campaign.
+
+\subsection{Methodology and Environment}
+
+All fuzzing campaigns were executed on a dedicated server running Ubuntu 24.04.4 LTS. The machine is equipped with a 64-core Intel Xeon Silver 4316 processor operating at 2.30GHz and 64GB of RAM.
+
+To ensure the evaluation reflects real-world conditions, we selected a diverse set of targets taken from the FuzzBench repository, alongside a Ruby parser. The selected benchmarks are: 
+\begin{itemize}
+    \item \texttt{libxslt}
+    
+    \item \texttt{openssl}
+    
+    \item \texttt{sqlite3}
+    
+    \item \texttt{systemd-link-parser}
+    
+    \item \texttt{mruby}
+\end{itemize}
+
+These targets were deliberately chosen for their reliance on complex parsing logic and frequent use of indirect branches, which makes them ideal candidates for testing the efficacy of the proposed indirect coverage map. The inclusion of \texttt{mruby}, a lightweight Ruby implementation, further stresses the fuzzer's ability to navigate the complex indirect jumps typically found in interpreters --- e.g., in the dispatch loop.
+
+\paragraph{Fuzzer Configurations} The analysis was conducted by comparing the standard configuration of AFL++ and our custom AFL++ architecture. The latter was tested in three different configurations: with slot sizes of 32, 64, and 128 bits.
+
+All targets were compiled with the \texttt{afl-clang-fast} wrapper, ensuring all performance or coverage deviations can be attributed to the newly introduced mechanism.
+
+\paragraph{Campaign Parameters} Fuzzing is inherently stochastic; therefore, single-run measurements are insufficient for drawing robust conclusions. For our campaign, each target version was fuzzed for 24 hours, restricted to a single core per run. To ensure statistical significance and account for randomness, we performed 5 independent trials per target version.

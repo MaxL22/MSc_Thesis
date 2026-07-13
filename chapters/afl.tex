@@ -1,0 +1,12 @@
+\chapter{Anatomy of a Modern Fuzzer}
+\label{ch:afl}
+
+While the components outlined in Section~\ref{sec:ff} establish the blueprint for most feedback-driven fuzzers, translating this architecture into a performant tool capable of operating at an industrial scale requires highly specific engineering implementations. The cycle of scheduling inputs, executing the target and evaluating feedback demands heavy performance optimisations to maintain efficiency in real-world usage.
+
+AFL++ \cite{fioraldi2020afl++} has established itself as the \textit{de facto} standard in modern coverage-guided grey-box fuzzing. By consolidating diverse research advancements (such as \cite{aschermann2020ijon}, \cite{aschermann2019redqueen} and \cite{bohme2016coverage}) into a single project, it serves as the premier baseline for contemporary vulnerability research. Understanding the architectural choices provides context that is fundamental to identifying constraints that limit traditional edge coverage metrics.
+
+\input{chapters/afl/comptime}
+
+\input{chapters/afl/runtime}
+
+\input{chapters/afl/adv}

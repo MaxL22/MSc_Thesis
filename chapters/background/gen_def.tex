@@ -1,0 +1,53 @@
+\section{Terminology}
+
+\begin{defin}[Fuzzing]
+    \textit{Fuzz testing} or \textit{Fuzzing} is the action of running a program using inputs sampled from an input space that may exceed the expected input space, to trigger unintended behaviour \cite{manes2019art}.
+\end{defin}
+
+\begin{defin}[Fuzzer]
+    A \textit{Fuzzer} is a program that performs fuzz testing on a target.
+\end{defin}
+
+\begin{defin}[Coverage-Guided Fuzzing]
+    \textit{Coverage-Guided Fuzzing} (CGF) is a feedback-driven fuzzing approach that uses control flow transitions to evaluate the impact of each mutated input \cite{zalewski2014afltech}.
+\end{defin}
+
+\begin{defin}[Control Flow Graph]
+    A \textit{Control Flow Graph} (CFG) is an abstraction of the control flow behaviour of a program. The CFG is a directed graph where the vertices represent basic blocks and edges represent possible control flow transfers \cite{allen1970control}.
+\end{defin}
+
+\begin{defin}[Basic Block]
+    A \textit{Basic Block} is a sequence of code with only one entry point and a single exit point \cite{gccinternals}.
+\end{defin}
+
+\begin{defin}[Edge]
+    Each \textit{Edge} is a link between basic blocks, representing a possible control flow transfer from the end of a basic block to the head of another \cite{gccinternals}.
+\end{defin}
+
+\begin{defin}[Direct Jump]
+    A \textit{Direct Jump} is a control flow transition in which the target is statically defined.
+\end{defin}
+
+\begin{defin}[Indirect Jump]
+    An \textit{Indirect Jump} is a control flow transition in which the target is only determined at runtime.
+\end{defin}
+
+\begin{defin}[Instrumentation]
+    \textit{Instrumentation} is defined as the process of augmenting a target program with modifications. This typically involves the insertion of lightweight logic to extract execution feedback, such as edge coverage, without altering the program's intended semantics.
+\end{defin}
+
+\begin{defin}[Coverage Map]
+    The \textit{Coverage Map} is a data structure typically implemented as a shared memory region between the fuzzer and the instrumented binary \cite{zalewski2014afltech}. It records basic block transitions and is used by the fuzzer to track the execution paths triggered by a specific input.   
+\end{defin}
+
+\begin{defin}[Map Collision]
+    A \textit{Map Collision} is an overlap in the coverage map, occurring when two distinct control flow edges are mapped to the same index in the coverage map. 
+\end{defin}
+
+\begin{defin}[Seed]
+    A \textit{Seed} is a concrete input file or byte sequence provided to a fuzzer and executed against the target program.
+\end{defin}
+
+%\begin{defin}[Seed Corpus]
+%   The \textit{Corpus} is a maintained collection of known inputs that the fuzzer uses as a baseline for mutation. This is dynamically updated as new coverage-yielding seeds are discovered.
+%\end{defin}

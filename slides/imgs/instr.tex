@@ -1,0 +1,36 @@
+\resizebox{\textwidth}{!}{
+\begin{tikzpicture}[
+  box/.style={
+    draw=navy!70!black, 
+    fill=blue!5, 
+    thick, 
+    rounded corners, 
+    inner sep=12pt, 
+    align=left, 
+    font=\ttfamily\small
+  },
+  arrow/.style={
+    -{Stealth[scale=1.2]}, 
+    line width=2pt, 
+    draw=gray!80
+  }
+]
+
+% First block
+\node[box] (block1) {
+  \%6 = load ptr, ptr \%5, align 8, !tbaa !9 \\
+  indirectbr ptr \%6, [label \%8, label \%7]
+};
+
+% Second block
+\node[box, right=1.5cm of block1] (block2) {
+  \%13 = load ptr, ptr \%12, align 8, !dbg !31, !tbaa !32 \\
+  \textcolor{brownish!80!black}{\%14 = ptrtoint ptr \%13 to i64} \\
+  \textcolor{brownish!80!black}{tail call void @\_\_afl\_trace\_indir(ptr nonnull @\_\_sancov\_gen\_.1, i64 \%14) \#3} \\
+  \textcolor{navy}{indirectbr ptr \%13, [label \%22, label \%15]}
+};
+% Arrow connecting the two blocks
+\draw[arrow] (block1) -- (block2); %node[midway, above, font=\sffamily\scriptsize, text=gray!80] {Instrument};
+
+\end{tikzpicture}
+}

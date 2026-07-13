@@ -1,0 +1,103 @@
+\resizebox{0.6\textwidth}{!}{
+\begin{tikzpicture}[
+    % font=\ttfamily,
+    font=\large,
+    color=navy,
+    every node/.style={text=navy},
+    box/.style={
+        draw=navy,
+        thick,
+        minimum width=3cm,
+        minimum height=1.2cm,
+        fill=white,
+        % Adding a solid, light drop shadow
+        drop shadow={shadow xshift=3pt, shadow yshift=-3pt, fill=navy, opacity=0.06}
+    },
+    title/.style={
+        % font=\ttfamily\large,
+        font=\LARGE,
+        text=navy
+    },
+    arrow/.style={
+        ->,
+        >={Triangle[length=3mm, width=3mm]},
+        thick,
+        navy
+    },
+    dotted_arrow/.style={
+        arrow,
+        very thick,
+        densely dotted,
+        rounded corners=4pt % Rounds the elbows of the indirect paths
+    }
+]
+
+% ================= DIRECT BRANCH =================
+
+% Nodes
+\node[box] (d_caller) {Caller Site};
+\node[box, below=1.5cm of d_caller] (d_target) {Target A};
+
+% Arrow
+\draw[arrow] (d_caller) -- (d_target);
+
+% Title
+\node[title, above=0.8cm of d_caller] (d_title) {Direct Branch};
+
+% Enclosing Box
+\begin{scope}[on background layer]
+    \node[
+        draw=navy,
+        thick,
+        inner xsep=15pt,
+        inner ysep=15pt,
+        fill=navy!2, % Very subtle navy-tinted background
+        fit=(d_title) (d_caller) (d_target)
+    ] (d_box) {};
+\end{scope}
+
+% ================= INDIRECT BRANCH =================
+
+% Positioned to the right of the Direct Branch box
+\node[box, right=4.5cm of d_caller] (i_caller) {Caller Site};
+
+% Target Nodes
+\node[box, below=1.5cm of i_caller] (i_targetA) {Target A};
+\node[box, right=0.8cm of i_targetA] (i_targetB) {Target B};
+\node[box, right=0.8cm of i_targetB] (i_targetC) {Target C};
+
+% Arrows
+% 1. Arrow to Target A
+\draw[dotted_arrow]
+    ([xshift=-0.3cm]i_caller.south) --
+    ([xshift=-0.3cm]i_targetA.north);
+
+% 2. Arrow to Target B
+\draw[dotted_arrow]
+    ([xshift=0.3cm]i_caller.south) --
+    ++(0, -0.9) -|
+    (i_targetB.north);
+
+% 3. Arrow to Target C
+\draw[dotted_arrow]
+    ([xshift=0.9cm]i_caller.south) --
+    ++(0, -0.4) -|
+    (i_targetC.north);
+
+% Title (Aligned flush right based on the right-most element: Target C)
+\node[title, anchor=base east] at (i_targetB.east |- d_title.base) (i_title) {Indirect Branch};
+
+% Enclosing Box
+\begin{scope}[on background layer]
+    \node[
+        draw=navy,
+        thick,
+        inner xsep=20pt,
+        inner ysep=15pt,
+        fill=navy!2,
+        fit=(i_title) (i_caller) (i_targetA) (i_targetC)
+    ] (i_box) {};
+\end{scope}
+
+\end{tikzpicture}
+}

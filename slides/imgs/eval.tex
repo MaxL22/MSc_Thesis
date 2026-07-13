@@ -1,0 +1,52 @@
+\resizebox{0.7\textwidth}{!}{\begin{tikzpicture}[
+    navy, 
+    >=Stealth,
+    node distance=1.5cm and 1.5cm,
+    process/.style={draw, rectangle, rounded corners, thick, minimum height=1cm, minimum width=2.5cm, align=center, font=\sffamily},
+    decision/.style={draw, diamond, aspect=2.5, thick, minimum height=1cm, align=center, font=\sffamily},
+    route/.style={draw, -Stealth, thick},
+    line/.style={draw, thick}
+]
+
+% Define Nodes
+\node[process] (mutate) {Mutate};
+\node[process, right=1cm of mutate] (execute) {Execute};
+
+% Map Evaluations as Decision Blocks
+\node[decision, right=1.6cm of execute, yshift=1.25cm] (eval_prim) {Novel Edge in\\Primary Map?};
+\node[decision, right=1.5cm of execute, yshift=-1.25cm, color=brownish] (eval_sec) {Novel Target in\\Secondary Map?};
+
+% Save Seed node
+\coordinate (mid_eval) at ($(eval_prim.east)!0.5!(eval_sec.east)$);
+\node[process, right=2cm of mid_eval] (save) {Save Seed};
+
+% Draw Forward Execution Connections
+\draw[route] (mutate) -- (execute);
+
+% Split execution to both maps cleanly
+\draw[route] (execute.10) -- ++(0.5,0) |- (eval_prim.west);
+\draw[route, color=brownish] (execute.-10) -- ++(0.5,0) |- (eval_sec.west);
+
+% --- "YES" CONNECTIONS ---
+% Path from primary evaluation entering slightly above center-left (anchor 160)
+\draw[route] (eval_prim.east) -- node[above, font=\sffamily] {Yes} ++(1.4,0) |- (save.170);
+\draw[route, color=brownish] (eval_sec.east) -- node[above, font=\sffamily] {Yes} ++(1,0) |- (save.190);
+
+% --- RETURN BUS SETUP ---
+% Setup coordinates for the unified return bus
+\coordinate (ReturnHeight) at ($(eval_prim.north) + (0, 0.75cm)$);
+\coordinate (BusRight) at ([xshift=1cm]save.east);
+
+% --- "NO" AND "SAVE" CONNECTIONS ---
+% 1. Connect "No" from secondary map (bottom) and "Save" output to the right vertical bus
+\draw[line] (eval_sec.south) -- node[right, font=\sffamily] {No} ++(0,-0.75cm) -| (BusRight) -- (BusRight |- ReturnHeight);
+\draw[line] (save.east) -- (BusRight |- save.east);
+
+% 2. Connect the top part of the right vertical bus leftwards to the top "No" connection
+\draw[line] (BusRight |- ReturnHeight) -- (eval_prim.north |- ReturnHeight);
+\draw[line] (eval_prim.north) -- node[right, font=\sffamily] {No} (eval_prim.north |- ReturnHeight);
+
+% 3. Unified return path looping back over the top to Mutate (Single Arrow)
+\draw[route] (eval_prim.north |- ReturnHeight) -| (mutate.north);
+
+\end{tikzpicture}}

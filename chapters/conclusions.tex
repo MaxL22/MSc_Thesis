@@ -1,0 +1,18 @@
+\chapter{Conclusions}
+\label{ch:concl}
+
+The fundamental challenge of coverage-guided fuzzing lies in accurately and efficiently observing the execution state of a target program. Traditional edge coverage tracking relies on a single shared memory bitmap that performs exceptionally well for direct control flow transfers. However, indirect branches inherently introduce control flow mappings that can be resolved only at runtime, creating blind spots for the fuzzer and causing it to prematurely discard viable inputs. To confront this limitation, this thesis proposed and implemented a novel architectural enhancement for AFL++: a dedicated secondary coverage map, specifically designed to track the targets of indirect control flow transfers. 
+
+The developed prototype extends the compilation pipeline to track the targets of all indirect control flow transfers. The runtime components of the fuzzer were also modified to handle everything necessary for the secondary coverage map itself, along with managing the feedback provided.
+
+As with any instrumentation that increases the granularity of execution telemetry, a performance overhead is inevitable, and our evaluation indicates a modest penalty, with significant variations depending on the target. However, across the set of chosen benchmarks, the modified fuzzer did not yield the expected results, as it performed on par with, or worse than, the baseline AFL++. 
+
+This plateau in coverage growth highlights limitations inherent to how fuzzers interact with indirect control flow, primarily because the secondary map provides, in most cases, redundant feedback compared to the primary coverage map. This work successfully provides the necessary infrastructure and telemetry for indirect branch tracking, but translating it into actionable feedback for the fuzzer requires new approaches to overcome these challenges.
+
+\section{Future Work}
+
+Based on the insights gained during the development and evaluation of the indirect branch coverage map, several promising avenues for future research emerge. The primary challenge identified is the redundancy of the feedback provided by the secondary map. Future iterations of this architecture must address this to provide useful information to the fuzzer.
+
+First, this redundancy might be overcome by repurposing the indirect map specifically for tracking control flow into uninstrumented code. While the primary edge map effectively tracks paths within the instrumented binary, it remains blind to execution paths traversing black-box shared libraries or kernel boundaries. Utilising the secondary map to trace these external calls could illuminate previously invisible program states. Complementary to this, a combined context metric should be explored. By hashing the indirect jump site with not only the target address but also the call stack, the fuzzer could create unique coverage profiles that differentiate context-sensitive execution paths from generic edge hits, providing deeper significance to the captured telemetry.
+
+Second, the limitations imposed by the fuzzer's mutation engine should be addressed. Discovering new indirect targets often requires the generation of specific data structures, which standard mutators struggle to produce. Future work should investigate the integration of the indirect map with advanced mutation strategies, such as CmpLog. By leveraging taint analysis and specialised mutators designed to solve pointer constraints, the fuzzer could utilise the target addresses captured by the secondary map to create the inputs necessary to traverse deeper indirect branches.

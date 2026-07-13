@@ -1,0 +1,31 @@
+\section{Execution Evaluation}
+
+The introduction of the secondary indirect coverage map necessitates adjustments to the fuzzer's core heuristics. Specifically, it calls for changes in how the engine evaluates the utility of newly discovered test cases and how the execution queue is managed to prioritise inputs that uncover novel indirect branch targets. Substantial modifications to the execution scheduling algorithm are therefore needed.
+
+\paragraph{Queue Management Integration} The cornerstone of CGF is the ability to recognize when an execution trace reaches novel execution paths. In the standard AFL++ architecture, this is solely governed by comparing the primary edge map against a historical record of all seen edges.
+
+With the introduction of the indirect tracking mechanism, this evaluation phase --- responsible for determining whether a test case should be appended to the fuzzer's queue --- must become dual-faceted. A specialized evaluation function is added to the fuzzer's post-execution routine, performing a comparison between the newly generated indirect map and its historical record.
+
+If novel bits are detected in the secondary map, representing a previously unreached indirect target, the input is immediately qualified as "interesting", similarly to the discovery of a new edge in the standard coverage map. This designation of novelty applies even if the primary edge map yielded no new discoveries. This is crucial as it allows the fuzzer to preserve and explore paths that would otherwise have been obscured.
+
+\paragraph{Seed Scoring} Appending a seed to the queue is only the first step. The scheduler must also determine the quality of the input. AFL++'s scheduling algorithm relies on the concept of "favoured" entries, which are selected more frequently for mutation. To minimise corpus size while maintaining maximum coverage, the fuzzer prioritises the fastest and smallest inputs that cover each known edge (as seen in Section \ref{subsec:qandsched}).
+
+To mirror the standard logic for the indirect map, a secondary array of top-rated entries is introduced, specifically for entries valuable in terms of bits set in the secondary map.
+
+The fuzzer evaluates the current test case's characteristics: 
+\begin{itemize}
+    \item Whether the test case is the very first to trigger a specific bit in the secondary map.
+
+    \item Whether the test case triggers an already known target but represents a more performant execution path than the previously recorded best input for that target.
+\end{itemize}
+In either case, the input captures the "top-rated" slot for that specific indirect bit. This strict preservation logic ensures the engine explicitly retains the most efficient inputs required to reach every discovered indirect destination, forming a solid baseline for subsequent mutation cycles.
+
+\paragraph{Performance Multipliers} When selecting a test case from the queue to undergo mutation, the fuzzer calculates a "performance score", which determines the intensity and duration of the fuzzing cycle allocated to that seed. Higher scores translate to more mutation cycles. 
+
+The calculation of this score has been augmented to incorporate the density of the indirect coverage map. Testcases that successfully uncover a significant number of paths containing indirect branches are awarded higher performance multipliers. This heuristic guides the mutation engine to focus its computational resources on inputs that have already demonstrated the capability to explore more traditionally obscure areas of the application's CFG. 
+
+\paragraph{Trace Verification and Execution Checksums} To maintain the integrity of the fuzzing state, AFL++ validates execution traces to ensure determinism and identify stability issues. A non-deterministic path can degrade the fuzzer's efficiency and introduce noise into the feedback loop. 
+
+During operations such as test case calibration and trace minimisation, the fuzzer computes checksums of the coverage bitmap to verify stability. The checksumming routines have been modified to incorporate the secondary map.
+
+The fuzzer now computes a combined checksum representing the state of both the primary edge map and the secondary indirect map. If the indirect map diverges between identical runs, the fuzzer's stability metrics will correctly flag the execution as variable. This validation ensures that the fuzzer does not erroneously optimise or prioritise inputs based on unstable indirect control flow, thereby maintaining the fidelity of the overall fuzzing campaign.

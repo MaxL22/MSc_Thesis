@@ -1,0 +1,18 @@
+\begin{table}[htbp]
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+& \multicolumn{4}{c}{\textbf{Fuzzer Configuration}} \\
+\cmidrule(l){2-5}
+\textbf{Target} & \textbf{32 bit} & \textbf{64 bit} & \textbf{128 bit} & \textbf{Default} \\
+\midrule
+\textbf{libxslt} & 17,509.20 & 17,751.60 & 17,504.60 & 18,127.00 \\
+\textbf{mruby}   & 5,881.40  & 8,414.80  & 7,381.00  & 11,122.80 \\
+\textbf{openssl} & 2,909.20  & 2,916.40  & 2,935.80  & 2,931.00 \\
+\textbf{sqlite3} & 11,054.40 & 10,761.80 & 9,875.80  & 13,026.00 \\
+\textbf{systemd} & 2,173.40  & 2,125.80  & 2,171.00  & 2,261.00 \\
+\bottomrule
+\end{tabular}
+\caption{Average Corpus Sizes after 24 Hours}
+\label{tab:corpus_sizes}
+\end{table}

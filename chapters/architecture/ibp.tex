@@ -1,0 +1,28 @@
+\section{The Indirect Branch Problem}
+
+As detailed in Section \ref{sub:shm}, AFL++ relies on a highly optimised, fixed-size shared memory bitmap (typically 64KB, although resizeable) to track execution paths. 
+
+Indirect branches --- such as function pointers, virtual method dispatches in C++, and complex switch-case statements --- introduce a dynamic $1$-to-$N$ mapping into the CFG. A single indirect call site $A$ does not resolve to a single destination $B$. Instead, depending on the program state, $A$ can transition to one of many targets during execution.
+
+If these indirect branches are instrumented using the standard edge-tracking mechanism, every new target $B_i$ generates a new edge $A \rightarrow B_i$.
+
+\paragraph{The Collision Problem} Mapping these high-volume dynamic edges into the same fixed-size map used for direct edges can significantly increase the overall density of the coverage map. A denser map naturally increases the probability of collisions. 
+
+When a collision occurs, it causes "coverage blindness". The fuzzer might observe an execution that reaches a novel path, but if that edge hashes to a byte already saturated by an indirect branch, the fuzzer will incorrectly assume the path is redundant. Consequently, viable inputs are discarded.
+
+\paragraph{Collision-Free Instrumentation Issues} This problem persists even when utilizing collision-free instrumentation modes, such as LLVM PCGUARD (Section \ref{sub:llvmmode}). These modes achieve zero collisions by assigning a unique ID to every basic block and edge discovered at compile time, sizing the coverage map exactly to the number of known edges.
+
+Because indirect branches resolve at runtime, they circumvent the static counting. If unpredictable dynamic edges were naively introduced into a collision-free map, they would risk breaking the zero-collision guarantee.
+
+Simply extending the coverage map to accommodate all dynamic edges would risk allocating an excessively large map, introducing performance bottlenecks and causing CPU cache thrashing.
+
+\subsection{Requirements for a Solution}
+
+To accurately track indirect branches without polluting the primary coverage map or degrading execution speed, an alternative data structure is required. This structure must satisfy two conflicting constraints: 
+\begin{itemize}
+    \item \textit{High capacity for dynamic edges:} It must be able to absorb a high volume of unpredictable, runtime-generated edges.
+
+    \item \textit{Strict memory and performance bounds:} It must maintain a small memory footprint to avoid cache thrashing and preserve fuzzing throughput.
+\end{itemize}
+
+These requirements point towards a probabilistic data structure capable of tracking set membership with a fixed size and a predictable collision rate --- a role perfectly suited for Bloom filters.

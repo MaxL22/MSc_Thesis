@@ -1,0 +1,68 @@
+% !TeX spellcheck = en_UK
+\documentclass[12pt,english]{report}
+
+\usepackage[utf8]{inputenc}        % UTF-8 support
+\usepackage[T1]{fontenc}           % Crucial for proper font embedding in PDF/A
+\usepackage{lmodern}               % Standard scalable font to prevent embedding errors
+
+\usepackage[a-1b]{pdfx}            % PDF-A/1b standard
+
+\usepackage{tesi}
+\usepackage[a4paper]{geometry}     % Formato del foglio
+\usepackage[english]{babel}
+
+\usepackage{graphicx}              % Funzioni avanzate per le immagini
+\usepackage{hologo}                % Bibtex logo with \hologo{BibTeX}
+\usepackage{epsfig}                % Permette immagini in EPS
+\usepackage{xcolor}                % Gestione avanzata dei colori
+\usepackage{amssymb,amsmath,amsthm}% Simboli matematici
+\usepackage{listings}              % Scrittura di codice
+\usepackage{url}                   % Visualizza e rendere interattivi gli URL
+\usepackage{tikz}                  % Permette di disegnare inline
+\usepackage{import}
+\usepackage{float}
+\usepackage{xstring}               % Permette di usare la funzione \IfInteger
+\usepackage{array}                 % Permette di usare colonne "m" dentro table
+\usepackage{multirow}              % Permette di creare tabelle con righe multiple
+\usepackage{caption}               % Roba per le figure side-by-side
+\usepackage{subcaption}            % Roba per le figure side-by-side
+\usepackage{enumitem}              % Gestione delle liste
+\graphicspath{{imgs/}}
+\usepackage{minted}
+\usepackage{booktabs}
+\usepackage{eso-pic}
+\usepackage{summary}
+\usepackage{csquotes}
+
+\usepackage[backend=biber, style=numeric]{biblatex}
+\addbibresource{bibliography_summary.bib}
+
+\begin{document}
+
+    \chapter*{Summary}
+    
+    \AddToShipoutPicture*
+	{\put(450,593){\includegraphics[width=23mm,height=23mm]{../imgs/unimi}}}
+
+    \paragraph{Thesis Title:} Evaluation of Bloom Filter-Based Coverage Maps in Coverage-Guided Fuzzing.
+
+    \vskip 0.8 cm
+    
+    Coverage-Guided Fuzzing (CGF) has become the industry standard for automated vulnerability discovery, identifying critical flaws across a wide spectrum of software systems, from IoT devices \cite{chen2018iotfuzzer, zheng2019firm} to operating system kernels \cite{syzkaller, xu2020krace}. Fuzzers operate by continuously generating malformed inputs \cite{miller1990empirical} and using execution feedback --- typically in the form of code coverage --- to guide the search toward undiscovered areas of a program. Modern fuzzers, such as the widely adopted AFL++ \cite{fioraldi2020afl++}, predominantly rely on tracking the transitions between basic blocks of code, known as edge coverage\iffalse \cite{manes2019art} \fi. This tracking is typically implemented via a shared memory bitmap \cite{zalewski2014afltech}. While this approach is exceptionally performant for direct control flow transfers, it struggles to accurately capture the complexity of indirect branches. Indirect branches, such as function pointers or virtual method dispatches, resolve dynamically at runtime, creating a one-to-many mapping that is often lost or conflated within the traditional coverage bitmap.
+
+    To address this limitation, this thesis introduces a novel architectural enhancement to the AFL++ fuzzer: a dedicated secondary coverage map specifically designed to track the targets of indirect control flow transfers. The primary goal of this research is to evaluate whether providing the fuzzer with a more granular representation of indirect branches can improve its ability to explore deep, hard-to-reach program states, ultimately yielding a higher rate of vulnerability discovery.
+
+    The proposed solution revolves around decoupling the tracking of indirect branches from the standard coverage mechanisms. To accommodate the unpredictable volume of dynamically resolved edges without inflating memory requirements or degrading performance, the architecture employs probabilistic data structures. Specifically, each indirect branch source in the target program is assigned a simple Bloom filter. As the target executes, every resolved destination of an indirect jump is hashed and recorded within the Bloom filter of the corresponding source. This ensures that the fuzzer can track a high volume of dynamic targets while maintaining memory bounds.
+
+    Implementing this design required comprehensive modifications across multiple layers of the fuzzing infrastructure. At compile-time, the LLVM compiler passes were extended to identify all indirect control flow instructions and allocate a guaranteed, collision-free slot for each source. The compiler also injects lightweight callback functions immediately before these branches to log the execution at runtime. To support this new telemetry, the fuzzer's runtime libraries were adapted to manage the initialization of these guard slots and efficiently handle the dynamic sizing of the shared memory region.
+
+    Furthermore, the core orchestration of the AFL++ fuzzer had to be reworked to leverage this new source of feedback. The engine's queue management and seed scoring algorithms were augmented to evaluate the novelty of the secondary map. When the fuzzer detects that an input has reached a previously unseen indirect target, it preserves that input, effectively prioritizing test cases that uncover new dynamic paths. The mutation scheduling was also adjusted to award higher performance multipliers to inputs that demonstrate the ability to traverse dense indirect control flows.
+
+    The architectural enhancements successfully provided the necessary infrastructure to track indirect branches without severely disrupting the fuzzer's execution throughput. An extensive empirical evaluation was conducted using a diverse set of real-world benchmarks, including complex parsers and interpreters that heavily rely on indirect branching. The results indicated that the modified fuzzer performed reliably, although it did not achieve a breakthrough in overall path discovery compared to the baseline AFL++. The evaluation revealed that while the secondary map accurately captured new indirect targets, this feedback was often redundant; the primary edge map typically registered new direct edges simultaneously, meaning the fuzzer would have preserved the inputs regardless. Additionally, reaching deeper indirect targets often requires generating highly specific data structures, such as valid memory pointers, which standard mutation strategies struggle to produce without the aid of specialized constraint-solving techniques \cite{aschermann2019redqueen, rawat2017vuzzer, wang2010taintscope}.
+
+    Ultimately, this work successfully designs and integrates a robust system for tracking dynamic control flow within a state-of-the-art fuzzer. While the anticipated leap in coverage was mitigated by structural redundancies, the architecture lays a strong foundation for future research. By demonstrating how to efficiently capture and process indirect branch telemetry, this thesis opens new avenues for combining advanced mutation strategies with granular, context-aware execution tracking.
+
+    \printbibliography
+	\addcontentsline{toc}{chapter}{Bibliography}
+    
+\end{document}

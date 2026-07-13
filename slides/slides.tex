@@ -1,0 +1,170 @@
+\documentclass[aspectratio=169]{beamer}
+
+%TODO: check sections
+% slide compile time aggiungere LLVM IR -> instrumentaton
+
+% To check the middle
+% \begin{tikzpicture}[remember picture, overlay]
+%   \draw[thick] (current page.north) -- (current page.south);
+% \end{tikzpicture}
+
+% \usepackage{svg}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tikz}
+\usetikzlibrary{positioning, arrows.meta, shapes.geometric, calc, fit, shadows, backgrounds}
+
+\usetheme{metropolis}
+\setsansfont{Satoshi}
+\title{Evaluation of Bloom Filter-Based Coverage Maps in Coverage-Guided Fuzzing}
+\date{}
+\author{Massimo Perego}
+\institute{Supervisor: Andrea Lanzi \\ \\ Università degli Studi di Milano}
+
+\titlegraphic{%
+  \begin{tikzpicture}[remember picture,overlay]
+    \node[anchor=south east, xshift=-0.5cm, yshift=0.5cm, align=center] at (current page.south east) {  \includegraphics[width=2cm]{imgs/unimi.pdf} \\[0.2cm]
+      \includegraphics[width=2cm]{imgs/laser.pdf}
+    };
+  \end{tikzpicture}%
+}
+
+\definecolor{navy}{HTML}{003366}
+\definecolor{brownish}{HTML}{E76F51}
+
+\setbeamercolor{normal text}{fg=navy}
+\setbeamercolor{structure}{fg=navy}
+\setbeamercolor{frametitle}{fg=white, bg=navy}
+\setbeamercolor{title separator}{fg=brownish}
+\setbeamertemplate{frame footer}{\includegraphics[width=1.5cm]{imgs/laser_blue.pdf}}
+
+\begin{document}
+  \maketitle
+
+  % \section{Where Does Standard Coverage Fail?}
+
+  \begin{frame}{Coverage-Guided Fuzzing}
+    \textbf{Fuzzing} is an automated software testing technique that continuously feeds malformed inputs into a target program to trigger crashes or vulnerabilities.
+
+    Coverage-guided fuzzing \textbf{tracks code execution} and prioritizes mutating inputs that successfully discover new code paths.
+
+    \begin{center}
+        % \includegraphics[width=10cm]{imgs/fuzz_loop.pdf}
+        \input{imgs/fuzz_loop.tex}
+    \end{center}
+
+    \textbf{AFL++} is the modern standard in general coverage-guided graybox fuzzing.
+  \end{frame}
+
+
+  \begin{frame}{The Indirect Branch Problem}
+    Standard edge coverage relies on a fixed-size \textbf{shared memory map} to log execution transitions. % which works well for statically known direct jumps.
+  
+    Indirect branches (virtual functions, function pointers, switch-cases) \textbf{resolve at runtime} and can have up to hundreds of targets.
+
+    \begin{center}
+        % \includegraphics[width=8cm]{imgs/targs_blue.pdf}
+        % \includegraphics[width=7cm]{imgs/targs.png}
+        \input{imgs/targs.tex}
+    \end{center}
+
+    \vspace*{-0.2cm}
+    Forcing these transitions into the standard coverage map \textbf{increases density} and can lead to \textbf{collisions}, causing ``fuzzer blindness''.
+  \end{frame}
+
+  \section{Can We Solve This?}
+  
+  \begin{frame}{Proposed Architecture}
+    The proposed solution introduces a \textbf{secondary coverage map} dedicated exclusively to tracking the \textbf{targets} of indirect control-flow transfers. This provides a \textbf{more granular representation} of the program's execution state.
+
+    % Explicitly tracking dynamic jumps in a separate structure provides a higher-fidelity representation of the program's execution state.
+
+    This approach aims to \textbf{improve path discovery} without polluting the primary map used for direct edge coverage.
+  \end{frame}
+
+  \begin{frame}{Principles of the Architecture}
+    Indirect branch data is stored in an \textbf{independent memory region} to prevent interference with the primary coverage bitmap.
+
+    % Every indirect branch source is assigned a unique tracking slot to guarantee there are no collisions between different sources.
+
+    Each source slot acts as a small \textbf{Bloom filter} to maintain a predictable memory footprint while probabilistically tracking destinations reached.
+
+    % The required overall capacity of the secondary map is computed dynamically at startup based on the number of instrumented points.
+
+    \begin{center}
+        \hspace*{-1.65cm}
+        \input{imgs/bf.tex}
+    \end{center}
+  \end{frame}
+
+  \section{How Can This Be Implemented?}
+  
+  \begin{frame}{Compile-Time Instrumentation}
+    The compiler scans the application's \textbf{intermediate representation} to identify every single indirect branch and indirect call instruction. It also \textbf{allocates a slot} in the binary's layout for each identified source.
+
+    \begin{center}
+      \input{imgs/instr.tex}
+    \end{center}
+    
+    A lightweight \textbf{tracking function is injected} immediately preceding the indirect branch to capture the source and dynamically resolved target.
+  \end{frame}
+
+  \begin{frame}{Runtime Support and Orchestration}
+    % The runtime component scans the reserved slots before the main logic begins to count them and communicate the exact number to the central fuzzer. The fuzzer then allocates a correctly sized shared memory segment between itself and the target.
+    The runtime counts the reserved slots and reports the number to the fuzzer, which then \textbf{allocates} a correctly sized \textbf{shared memory segment}.
+
+    \begin{center}
+        \hspace*{-1.5cm}
+        \input{imgs/eval.tex}
+    \end{center}
+
+    \vspace*{-0.2cm}
+    The fuzzer saves inputs that register \textbf{novel indirect targets} on the secondary map. Seed scoring algorithms were adjusted to \textbf{prioritize} test cases that trigger a \textbf{high density} of indirect branch targets.
+
+    
+    % The core orchestration actively evaluates this dual-map system and immediately saves the input if the secondary map registers a novel indirect target.
+
+  \end{frame}
+
+  \section{What Was the Outcome?}
+  
+  \begin{frame}{Results}
+    Fuzzing campaigns were conducted using \textbf{real-world benchmarks} heavily reliant on complex parsing and indirect jumps.
+    
+    \input{imgs/ctable.tex}
+
+    The approach \textbf{did not yield} a breakthrough in path discovery and performed on par with the baseline fuzzer in terms of total code coverage.
+  \end{frame}
+
+  \begin{frame}{Results}
+    The extra tracking introduced a measurable performance \textbf{overhead} that reduced execution speed by up to 25\%.
+
+    \input{imgs/otable.tex}
+  \end{frame}
+
+  \section{Why Did It Fail?}
+
+  \begin{frame}{Analysis of Limitations}
+    The primary limitation is \textbf{redundancy} because new destination blocks almost inevitably trigger new direct edges that are already captured by the primary map. The secondary map rarely provided uniquely actionable feedback.
+    % and mostly agreed with the findings of the primary map.
+
+    Standard evolutionary mutations are \textbf{inadequate} for guessing valid pointers or specific data structures required for new indirect targets. The \textbf{mutation engine} lacks the structural awareness to proactively create the inputs needed to reach these paths.
+  \end{frame}
+
+  \begin{frame}{Future Work}
+    The architecture successfully establishes a robust foundation for \textbf{tracking indirect branches} and adding a \textbf{secondary coverage map}.
+
+    The system could be repurposed to track control flow into \textbf{uninstrumented code} such as external shared libraries.
+
+    Tracking should be integrated with advanced \textbf{structure-aware mutation engines} or \textbf{taint analysis} to synthesize exact inputs needed to penetrate deeper into application logic.
+  \end{frame}
+
+  \begin{frame}[standout]
+    Thanks For The Attention
+
+    \vspace{0.8em}
+    \normalsize
+    Questions?
+  \end{frame}
+
+\end{document}

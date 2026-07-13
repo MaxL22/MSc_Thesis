@@ -1,0 +1,18 @@
+\begin{table}[htbp]
+    \centering
+    \begin{tabular}{@{}l cccc @{}}
+        \toprule
+        & \multicolumn{4}{c}{\textbf{Fuzzer Configuration}} \\
+        \cmidrule(l){2-5}
+        \textbf{Target} & \textbf{32 bit} & \textbf{64 bit} & \textbf{128 bit} & \textbf{Default} \\
+        \midrule
+        \textbf{libxslt} & 54.06\% & 54.14\% & 54.06\% & 54.43\% \\
+        \textbf{mruby}   & 33.89\% & 37.36\% & 36.70\% & 42.61\% \\
+        \textbf{openssl} & 14.48\% & 14.49\% & 14.50\% & 14.48\% \\
+        \textbf{sqlite3} & 51.04\% & 51.46\% & 50.88\% & 52.11\% \\
+        \textbf{systemd} & 23.10\% & 23.57\% & 23.58\% & 23.29\% \\
+        \bottomrule
+    \end{tabular}
+    \caption{Average Region Coverage after 24 Hours}
+    \label{tab:region_coverage}
+\end{table}
